@@ -5,6 +5,8 @@ import { config } from 'dotenv';
 import connectDB from './config/db.config.js';
 import authRoute from './routes/auth.route.js';
 import employeeRoute from './routes/employee.route.js';
+import departmentRoutes from './routes/department.route.js';
+import leaveRoutes from './routes/leave.route.js';
 const app = express();
 
 config(); // configure dotenv
@@ -15,14 +17,9 @@ app.use(bodyParser.json());
 app.use(cors());
 app.use('/api/auth', authRoute);
 app.use('/api/user', employeeRoute);
-app.post('/test', (req, res) => {
-    // console.log('Test Body:', req.body);
-    res.send('Test route');
-});
+app.use('/api/departments', departmentRoutes);
+app.use('/api/leaves', leaveRoutes);
   
-app.get('/', (req, res) => {
-    res.send("Hello world!");
-});
 app.listen(port, () => {
     console.info(`Server running on ${port}.`);
 });

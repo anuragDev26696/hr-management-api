@@ -1,13 +1,14 @@
 import { Schema, model } from 'mongoose';
 
 const addressSchema = new Schema({
-  street: { type: String, required: true },
-  city: { type: String, required: true },
-  postalCode: { type: String, required: true },
-  country: { type: String, required: true },
+  addressLine1: { type: String, default: null },
+  addressLine2: { type: String, default: null },
+  city: { type: String, default: null },
+  district: { type: String, default: null },
+  pincode: { type: String, default: null },
 });
 
 // Create the Address model
 const Address = model('Address', addressSchema);
 
-export default Address;
+export {Address, addressSchema};

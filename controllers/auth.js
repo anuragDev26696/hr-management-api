@@ -76,14 +76,14 @@ const login = async (req, res) => {
 
     // Create JWT payload
     const payload = {
-      uuid: user.uuid,
+      uuid: user.userDetails.uuid,
       email: user.email,
       role: user.role,
       createdBy: user.userDetails ? user.userDetails.createdBy : null,  // Access the populated userDetails
     };
 
     // Sign JWT token
-    const token = JWT.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = JWT.sign(payload, process.env.JWT_SECRET, { expiresIn: '10h' });
 
     // Send the token in the response
     res.status(200).json({ data: {token, payload}, message: 'Login successfull', success: true });

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Login from "./login.js";
 import genericSchema from "./generic.js";
+import { addressSchema } from "./address.js";
 
 // Define the employee schema
 const employeeSchema = new mongoose.Schema(
@@ -17,6 +18,12 @@ const employeeSchema = new mongoose.Schema(
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address"], // Regex for email validation
       unique: true,
     },
+    mobile: {
+      type: String,
+      required: [true, "Mobile number is required."],
+      match: [/^[0-9]{10}$/, "Please enter a valid mobile number"], // Regex for email validation
+      unique: [true, "Mobile number already exist."],
+    },
     role: {
       type: String,
       enum: ["admin", "hr", "project manager", "employee"],
@@ -30,14 +37,15 @@ const employeeSchema = new mongoose.Schema(
       ref: "department", // Reference to Department collection
       default: null
     },
-    position: { type: String },
-    designation: { type: String },
     subDepartment: { type: String },
+    position: { type: String, default: null },
+    designation: { type: String },
     joiningDate: { type: Date, default: new Date() },
     resignationDate: { type: Date, default: null },
     isActive: {type: Boolean, default: false},
-    jobTitle: {type: String, default: null},
     orgId: {type: String, default: ""},
+    currentAddress: addressSchema,
+    permanentAddress: addressSchema,
   },
   {
     timestamps: true, // Add createdAt and updatedAt timestamps
@@ -46,6 +54,31 @@ const employeeSchema = new mongoose.Schema(
 
 // Inherit the base schema
 employeeSchema.add(genericSchema); // Add the isDeleted and uuid fields from the base schema
+
+// Virtual field 1: departmentDetail (populates department and subDepartment)
+employeeSchema.virtual('departmentDetail', {
+  ref: 'department', // Reference to Department model
+  localField: 'department', // Field in the Employee schema
+  foreignField: 'uuid', // Field in the Department schema
+  justOne: true, // We expect only one department
+  options: {
+    select: 'name code subDepartments', // Select the fields we want from department
+    populate: {
+      path: 'subDepartments', // Populate subDepartments within the department
+      match: { code: '$subDepartmentCode' }, // Match subDepartment code to employee's subDepartmentCode
+      select: 'name code', // Select specific fields from the subDepartment
+    },
+  },
+});
+
+// Employee Schema
+employeeSchema.methods.getFormattedJoinDate = function (locale) {
+  // If joiningDate is not defined, return empty string
+  if (!this.joiningDate) return '';
+
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  return this.joiningDate.toLocaleDateString(locale, options);
+};
 
 // Add custom pre-save validation to check some other conditions
 employeeSchema.pre("save", function (next) {

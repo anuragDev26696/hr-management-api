@@ -15,8 +15,9 @@ export const authGuard = (req, res, next) => {
     req.user = decoded;
     next(); // Call the next middleware or route handler
   } catch (err) {
-    console.error(err);
-    res.status(401).json({ message: 'Token is not valid' });
+    const {name, message, expiredAt} = err;
+    // console.error("type: ", JSON.stringify(err));
+    res.status(401).json({ data: null, success: false, message: message || 'Token is not valid', error: name });
   }
 };
 
@@ -31,8 +32,7 @@ export const adminGuard = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log(decoded.payload, " :payload in adminGuard");
-    if (!decoded.payload.role || decoded.payload.role !== 'admin' || !decoded.payload.isAdmin) {
+    if (!decoded.role || decoded.role !== 'admin') {
       res.status(401).json({ message: 'Access denied.' });
       return;
     }
