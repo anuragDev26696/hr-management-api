@@ -1,5 +1,5 @@
 import express from 'express';
-import { newUser, getAll, getUser, updateUser } from '../controllers/employee.js';
+import { newUser, getAll, getUser, updateUser } from '../controllers/employee.controller.js';
 import { adminGuard, authGuard } from '../middleware/auth.js';
 
 const employeeRoute = express.Router();

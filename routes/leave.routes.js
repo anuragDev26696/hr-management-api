@@ -1,6 +1,6 @@
 import express from 'express';
 import { adminGuard, authGuard } from "../middleware/auth.js";
-import { applyLeave, cancelLeave, getLeaves, monthlyLeaves, updateStatus } from '../controllers/leave.js';
+import { applyLeave, cancelLeave, getLeaves, monthlyLeaves, updateStatus } from '../controllers/leave.controller.js';
 
 const router = express.Router();
 
