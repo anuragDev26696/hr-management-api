@@ -1,4 +1,3 @@
-# hr-management-api
 # Hi there, I'm Anurag Kumar Verma 👋
 
 ![Profile views](https://gpvc.arturio.dev/Anurag-Kumar-Verma)
@@ -10,19 +9,25 @@ I am a passionate software developer with a keen interest in building efficient 
 - 🌱 I’m currently learning advanced web development and cloud computing.
 - 👯 I’m looking to collaborate on open source projects.
 - 🤔 I’m looking for help with machine learning projects.
-- 💬 Ask me about Python, JavaScript, and DevOps.
-- 📫 How to reach me: [Email](mailto:anurag@example.com)
+- 💬 Ask me about HTML, CSS, JavaScript, TypeScript, Angular, Angular Material, React, RxJs.
+- 📫 How to reach me: [Email](mailto:anuragkumar26696@gmail.com)
 - ⚡ Fun fact: I love to play chess and solve puzzles.
 
 ## 🛠️ Technologies & Tools
 
-![Python](https://img.shields.io/badge/-Python-333333?style=flat&logo=python)
+![HTML](https://img.shields.io/badge/-HTML-333333?style=flat&logo=html)
+![CSS](https://img.shields.io/badge/-CSS-333333?style=flat&logo=css)
 ![JavaScript](https://img.shields.io/badge/-JavaScript-333333?style=flat&logo=javascript)
+![TypeScript](https://img.shields.io/badge/-TypeScript-333333?style=flat&logo=typescript)
+![Angular](https://img.shields.io/badge/-Angular-333333?style=flat&logo=angular)
+![RxJs](https://img.shields.io/badge/-RxJs-333333?style=flat&logo=rxjs)
 ![React](https://img.shields.io/badge/-React-333333?style=flat&logo=react)
 ![Node.js](https://img.shields.io/badge/-Node.js-333333?style=flat&logo=node.js)
-![Docker](https://img.shields.io/badge/-Docker-333333?style=flat&logo=docker)
+![Express](https://img.shields.io/badge/-Express-333333?style=flat&logo=express)
+![MongoDb](https://img.shields.io/badge/-MongoDb-333333?style=flat&logo=mongodb)
+<!-- ![Docker](https://img.shields.io/badge/-Docker-333333?style=flat&logo=docker)
 ![Kubernetes](https://img.shields.io/badge/-Kubernetes-333333?style=flat&logo=kubernetes)
-![AWS](https://img.shields.io/badge/-AWS-333333?style=flat&logo=amazon-aws)
+![AWS](https://img.shields.io/badge/-AWS-333333?style=flat&logo=amazon-aws) -->
 
 ## 📈 GitHub Stats
 
@@ -38,16 +43,16 @@ I am a passionate software developer with a keen interest in building efficient 
 
 ## 🔗 Connect with Me
 
-[![LinkedIn](https://img.shields.io/badge/-LinkedIn-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/anurag-kumar-verma)
+[![LinkedIn](https://img.shields.io/badge/-LinkedIn-0077B5?style=flat&logo=linkedin)](https://www.linkedin.com/in/anurag-kumar-verma-39a704189)
 [![Twitter](https://img.shields.io/badge/-Twitter-1DA1F2?style=flat&logo=twitter)](https://twitter.com/anurag_verma)
 [![GitHub](https://img.shields.io/badge/-GitHub-333333?style=flat&logo=github)](https://github.com/Anurag-Kumar-Verma)
 
-## 📝 Latest Blog Posts
+<!-- ## 📝 Latest Blog Posts -->
 
 <!-- BLOG-POST-LIST:START -->
-- [How to Get Started with Machine Learning](https://example.com/how-to-get-started-with-machine-learning)
+<!-- - [How to Get Started with Machine Learning](https://example.com/how-to-get-started-with-machine-learning)
 - [Understanding Docker and Kubernetes](https://example.com/understanding-docker-and-kubernetes)
-- [A Guide to JavaScript ES6 Features](https://example.com/guide-to-javascript-es6-features)
+- [A Guide to JavaScript ES6 Features](https://example.com/guide-to-javascript-es6-features) -->
 <!-- BLOG-POST-LIST:END -->
 
 ---
