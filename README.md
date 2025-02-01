@@ -15,8 +15,8 @@ I am a passionate software developer with a keen interest in building efficient 
 
 ## 🛠️ Technologies & Tools
 
-![HTML](https://img.shields.io/badge/-HTML-333333?style=flat&logo=html)
-![CSS](https://img.shields.io/badge/-CSS-333333?style=flat&logo=css)
+![HTML5](https://img.shields.io/badge/-HTML5-333333?style=flat&logo=html5)
+![CSS3](https://img.shields.io/badge/-CSS3-333333?style=flat&logo=css3)
 ![JavaScript](https://img.shields.io/badge/-JavaScript-333333?style=flat&logo=javascript)
 ![TypeScript](https://img.shields.io/badge/-TypeScript-333333?style=flat&logo=typescript)
 ![Angular](https://img.shields.io/badge/-Angular-333333?style=flat&logo=angular)
