@@ -7,6 +7,10 @@ const clockIn = async (req, res) => {
   try {
     const employeeId = req.user.uuid;
     const clockInTime = new Date();
+    const exstingData = await Attendance.findOne({employeeId, clockOutTime: {$in: [null, undefined], date: dateQuery(clockInTime)}});
+    if(exstingData){
+      res.status(400).json({data: exstingData, success: true, message: 'Already clocked In.'});
+    }
     const newAttendance = new Attendance({employeeId, clockInTime, createdBy: employeeId});
     await newAttendance.save();
     res.status(201).json({data: newAttendance, success: true, message: 'Clock in successful.'});
@@ -40,7 +44,7 @@ const clockOut = async (req, res) => {
     attendance.clockOutTime = clockOutTime;
     attendance.totalHours = (clockOutTime - attendance.clockInTime) / (1000 * 60 * 60); // Calculate in hours
     await attendance.save();
-    res.status(200).json({data: attendance, success: true, message: 'Clocked out successfully.'});
+    res.status(200).json({data: attendance.populate('employeeDetail'), success: true, message: 'Clocked out successfully.'});
   } catch (error) {
     res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error clocking out' });
   }
@@ -49,11 +53,49 @@ const clockOut = async (req, res) => {
 // Get attendance for a day
 const getDayAttendance = async (req, res) => {
   try {
-    const { date, employeeId } = req.params;
-    const attendance = await Attendance.find({ date: new Date(date) }).sort({createdAt: -1});
+    const { date = new Date(), employeeId } = req.params;
+    const attendance = await Attendance.find({ date: new Date(date) }).sort({createdAt: -1}).populate('employeeDetail').exec();
     const totalCount = await Attendance.countDocuments({ date: new Date(date) });
     const message = totalCount > 0 ? "Attendance retrieved." : "Attendance not found for this day";
-    res.status(200).json({data: attendance, success: true, message: ''});
+    res.status(200).json({data: {docs: attendance, totalCount}, success: true, message});
+  } catch (error) {
+    res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error fetching attendance for the day' });
+  }
+};
+
+// Get attendance for a day
+const getEmployeeLatestAttendance = async (req, res) => {
+  try {
+    const { uuid } = req.user;
+    const attendance = await Attendance.find({ date: dateQuery(new Date()), employeeId: uuid }).sort({createdAt: -1}).populate('employeeDetail').exec();
+    res.status(200).json({data: attendance[0] || null, success: true, message: attendance.length > 0 ? 'Attendance found.': 'Attendance not found.'});
+  } catch (error) {
+    res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error fetching attendance for the day' });
+  }
+};
+
+// Get attendance for a day with selected employees
+const getEmployeesAttendance = async (req, res) => {
+  try {
+    const { date, employeeIds } = req.body;
+    let message = "";
+    // Validation for employee id's
+    if(!employeeIds || Array.isArray(employeeIds)){
+      message = "EmployeeIds field is required and it should be an array.";
+      res.status(400).json({data: null, success: false, message});
+    }
+    // Validation for date
+    const isValidDate = !isNaN(Date.parse(date)); // Basic date check
+    if (!isValidDate) {
+      message = 'Invalid date format.';
+      return res.status(400).json({ data: null, message, success: false });
+    }
+    let query = {
+      date: dateQuery(date),
+      employeeIds: {$in: {employeeIds}}
+    };
+    const attendance = await Attendance.find(query).sort({createdAt: -1}).populate('employeeDetail').exec();
+    res.status(200).json({data: attendance, success: true, message: 'Attendance retrieved.'});
   } catch (error) {
     res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error fetching attendance for the day' });
   }
@@ -188,10 +230,10 @@ const markAbsenceOrManualClockOut = async (req, res) => {
   }
 };
 
-function dateQuery(year, month) {
+export function dateQuery(year, month) {
   const startDate = new Date(year, month - 1, 1); // Start of the month
   const endDate = new Date(year, month, 0); // End of the month
   return { $gte: startDate, $lte: endDate };
 }
 
-export { clockIn, clockOut, getDayAttendance as getAttendanceForDay, getAttendanceForMonth, markAbsenceOrManualClockOut };
+export { clockIn, clockOut, getDayAttendance as getAttendanceForDay, getAttendanceForMonth, markAbsenceOrManualClockOut, getEmployeesAttendance };
