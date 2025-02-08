@@ -43,7 +43,7 @@ const employeeSchema = new mongoose.Schema(
     joiningDate: { type: Date, default: new Date() },
     resignationDate: { type: Date, default: null },
     isActive: { type: Boolean, default: false },
-    orgId: { type: String, default: "" },
+    orgId: { type: String, default: "" , required: [true, 'Organization is required.']},
     currentAddress: addressSchema,
     permanentAddress: addressSchema,
     workingDays: {
@@ -153,6 +153,7 @@ employeeSchema.post("save", async function (doc) {
         role: doc.role,
         password: null,
         userUUID: doc.uuid,
+        orgId: doc.orgId,
       };
       const loginEntry = new Login(reqData);
       await loginEntry.save();

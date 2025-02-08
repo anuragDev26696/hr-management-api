@@ -11,8 +11,7 @@ const leaveRequestSchema = new Schema({
     },
     orgId: {
         type: String,
-        // required: [true, 'Organizatio Id is required.'],
-        ref: 'organization', // Assuming you have an 'organization' collection for org details
+        required: [true, 'Organizatio Id is required.'],
     },
     leaveDays: [{
         date: { 

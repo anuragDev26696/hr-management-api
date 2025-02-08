@@ -17,6 +17,7 @@ const holidaySchema = new Schema({
   },
   orgId: {
     type: String,
+    required: [true, 'Organization is required.'],
     default: '',
   }
 });

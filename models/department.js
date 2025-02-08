@@ -50,9 +50,6 @@ const departmentSchema = new Schema(
       default: true,
     },
   },
-  {
-    timestamps: true, // Adding createdAt and updatedAt timestamps
-  }
 );
 
 departmentSchema.add(genericSchema); // Add generic schema
