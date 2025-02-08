@@ -7,9 +7,9 @@ export const createDepartment = async (req, res) => {
     // Step 1: Save the new department
     const data = await newDepartment.save();
     // Step 2: Respond with success message and department data
-    res.status(201).json({data, message: "Department created successfully.", success: true});
+    return res.status(201).json({data, message: "Department created successfully.", success: true});
   } catch (error) {
-    res.status(500).json({message: "An error occurred while create department.", success: false, error: error.message});
+    return res.status(500).json({message: "An error occurred while create department.", success: false, error: error.message});
   }
 };
 
@@ -34,6 +34,7 @@ export const updateDepartment = async (req, res) => {
   try {
     const { id } = req.params; // Extract department uuid (id) from URL
     const updateData = req.body; // Extract the data to update from request body
+    let message = "Department updated successfully.";
     // Validate the update data
     if (Object.keys(updateData).length === 0) {
       throw new Error("No update data provided.");
@@ -41,28 +42,43 @@ export const updateDepartment = async (req, res) => {
     // Find the department to update
     let existingItem = await Department.findOne({ uuid: id });
     if (!existingItem) {
-      throw new Error("Department not found.");
+      message = "Department not found.";
+      return res.status(500).json({message, error: message});
     }
+    // Check for duplicate sub-department name in the updated data
+    if (updateData.subDepartments) {
+      const subDepartments = updateData.subDepartments;
+      for (let subDepartment of subDepartments) {
+        const existingSubDept = await Department.findOne({
+          'subDepartments.name': subDepartment.name,
+          uuid: { $ne: id }, // Ensure it's not the same department
+        });
+
+        if (existingSubDept) {
+          message = `Sub-department name "${subDepartment.name}" already exists in another department.`;
+          return res.status(500).json({message, error: message});
+        }
+      }
+    }
+
     // Perform partial update
     const result = await Department.findOneAndUpdate(
       { uuid: id },
       { $set: updateData },
       { new: true, runValidators: true } // `new: true` returns the updated document
     );
-    console.log(result, " :result");
     const data = await Department.findById(result._id);
-    res.status(200).json({data, message: "Department updated successfully.", success: true});
+    return res.status(200).json({data, message, success: true});
   } catch (error) {
-    res.status(500).json({message: "Server error.", success: false, error});
-    throw error;
+    return res.status(500).json({message: error.message || error || "Server error.", success: false, error: error.message || error});
   }
 };
 
 // Delete department
 export const deleteDepartment = async (req, res) => {
   try {
-    const { uuid } = req.params;
-    const data = await Department.findOneAndDelete({ uuid: uuid });
+    const { id } = req.params;
+    const data = await Department.findOneAndDelete({ uuid: id });
     return res.status(200).json({ message: "Department deleted successfully.", success: true, data });
   } catch (error) {
     throw error;

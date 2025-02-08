@@ -9,6 +9,7 @@ import departmentRoutes from './routes/department.routes.js';
 import leaveRoutes from './routes/leave.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import holidayRoutes from './routes/holiday.routes.js';
+import regularizationRoutes from './routes/regularization.routes.js';
 const app = express();
 
 config(); // configure dotenv
@@ -23,6 +24,7 @@ app.use('/api/departments', departmentRoutes);
 app.use('/api/leaves', leaveRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/holidays', holidayRoutes);
+app.use('/api/regularization', regularizationRoutes);
   
 app.listen(port, () => {
     console.info(`Server running on ${port}.`);

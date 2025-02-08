@@ -18,14 +18,6 @@ const loginSchema = new Schema({
     enum: ['admin', 'hr', 'employee'],
     required: true,
   },
-  isAdmin: {
-    type: Boolean,
-    default: false,
-  },
-  isHR: {
-    type: Boolean,
-    default: false,
-  },
   userUUID: {
     type: String,
     ref: 'user',  // Reference to the user who created this user (for admin tracking)
