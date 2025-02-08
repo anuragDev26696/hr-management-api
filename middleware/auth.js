@@ -21,7 +21,6 @@ export const authGuard = (req, res, next) => {
   }
 };
 
-
 // Middleware to verify admin
 export const adminGuard = (req, res, next) => {
   const token = req.header('authorization');  // Token sent in the header as authorization
@@ -33,34 +32,22 @@ export const adminGuard = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (!decoded.role || decoded.role !== 'admin') {
-      res.status(401).json({ message: 'Access denied.' });
+      res.status(403).json({ message: 'Access denied.' });
       return;
     }
     req.user = decoded;
     next(); // Call the next middleware or route handler
   } catch (err) {
     console.error(err);
-    res.status(401).json({ message: 'Access denied.' });
+    res.status(403).json({ message: 'Access denied.' });
   }
 };
 
-// Middleware to verify HR
-export const HRGuard = (req, res, next) => {
-  const token = req.header('authorization');  // Token sent in the header as authorization
-
-  if (!token) {
-    return res.status(401).json({ message: 'No token, authorization denied' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    if (!decoded.payload.role || decoded.payload.role !== 'hr' || !decoded.payload.isHR) {
-      res.status(401).json({ message: 'Access denied.' });
-      return;
+export function roleGuard(allowedRoles = []) {
+  return (req, res, next) => {
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ message: 'Forbidden', error: 'Not allowed.' });
     }
-    req.user = decoded;
-    next(); // Call the next middleware or route handler
-  } catch (err) {
-    res.status(401).json({ message: 'Access denied.' });
-  }
-};
+    next();
+  };
+}

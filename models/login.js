@@ -2,7 +2,7 @@ import { Schema, model } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import genericSchema from "./generic.js";
 
-// User Schema for storing login details
+// Login Schema
 const loginSchema = new Schema({
   email: {
     type: String,
@@ -24,7 +24,7 @@ const loginSchema = new Schema({
     required: true,
     unique: true,
   },
-  orgId: {type: String, default: ""},
+  orgId: {type: String, default: "", required: true,},
 }, {
   timestamps: true,  // Automatically create createdAt and updatedAt fields
 });

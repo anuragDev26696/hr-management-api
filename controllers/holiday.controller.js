@@ -5,7 +5,7 @@ import moment from "moment";
 const addHoliday = async (req, res) => {
   try {
     const { name, date, holidayType } = req.body;
-    const { uuid } = req.user;
+    const { uuid, orgId } = req.user;
     let message = "";
 
     // 1. Validate that the date is a valid date format using Moment.js
@@ -24,7 +24,8 @@ const addHoliday = async (req, res) => {
     // 3. Create the new holiday entry
     const newHoliday = new Holiday({
       name,
-      date: parsedDate.toDate(), // Convert to JavaScript Date object before saving
+      orgId,
+      date: new Date(parsedDate), // Convert to JavaScript Date object before saving
       holidayType,
       createdBy: uuid,
     });
@@ -39,8 +40,9 @@ const addHoliday = async (req, res) => {
 // Delete holiday
 const deleteHolidays = async (req, res) => {
   try {
-    const holiday = await Holiday.findOneAndDelete({uuid: req.params.uuid});
-    res.status(200).json({data: holiday, success: true, message: 'Event deleted successfully.'});
+    const orgId = req.user.orgId;
+    const holiday = await Holiday.findOneAndDelete({uuid: req.params.uuid, orgId});
+    res.status(200).json({data: holiday, success: holiday != null, message: holiday ? 'Event deleted successfully.' : 'Event not found.'});
   } catch (error) {
     res.status(500).json({error: error.message, message: 'Error fetching holiday' });
   }
@@ -50,7 +52,8 @@ const deleteHolidays = async (req, res) => {
 const getHolidaysByMonth = async (req, res) => {
   try {
     const { year, month } = req.query; // Expecting year and month in query params (e.g., /holidays?year=2025&month=02)
-    let message = "";
+    const {orgId} = req.user;
+    let message = 'Holidays retrieved successfully.';
 
     // Validate the inputs (make sure they are integers and in correct ranges)
     if (!year || !month) {
@@ -72,10 +75,11 @@ const getHolidaysByMonth = async (req, res) => {
 
     // Fetch holidays for the given month
     const holidays = await Holiday.find({
-      date: { $gte: startOfMonth, $lte: endOfMonth }
+      date: { $gte: startOfMonth, $lte: endOfMonth },
+      orgId
     });
 
-    res.status(200).json({ data: holidays, success: true, message: 'Holidays retrieved successfully.' });
+    res.status(200).json({ data: holidays, success: true, message });
   } catch (error) {
     res.status(500).json({ error: error.message, message: 'Error fetching holidays for the month' });
   }
@@ -85,6 +89,7 @@ const getHolidaysByMonth = async (req, res) => {
 const getHolidaysByYear = async (req, res) => {
   try {
     const { year } = req.params; // Expecting year in params (e.g., /holidays/year/2025)
+    const {orgId} = req.user;
     let message = "";
 
     // Validate the year
@@ -106,7 +111,8 @@ const getHolidaysByYear = async (req, res) => {
 
     // Fetch holidays for the given year
     const holidays = await Holiday.find({
-      date: { $gte: startOfYear, $lte: endOfYear }
+      date: { $gte: startOfYear, $lte: endOfYear },
+      orgId
     });
 
     res.status(200).json({ data: holidays, success: true, message: 'Holidays retrieved successfully.' });

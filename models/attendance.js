@@ -32,6 +32,11 @@ const attendanceSchema = new Schema({
     type: Boolean,
     default: false, // Indicates if this attendance is via regularization
   },
+  orgId: {
+    type: String,
+    required: [true, 'Organization is required.'],
+    default: '',
+  },
 });
 
 // Virtual field: employeeDetail (populates emplooyee)

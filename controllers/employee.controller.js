@@ -6,10 +6,12 @@ import { v4 as uuidv4 } from "uuid"; // Use uuidv4 for generating UUIDs
 export const newUser = async (req, res) => {
   try {
     const { email, joiningDate } = req.body;
+    const { orgId } = req.user;
     // Find the user by email
     const user = await Login.findOne({ email, isDeleted: false });
+    const employee = await Employee.findOne({ email, orgId, isDeleted: false });
     let message = "";
-    if (user) {
+    if (user || employee) {
       message = "Employee already exist.";
       return res.status(400).json({success: false, error: message, message});
     }
@@ -25,6 +27,7 @@ export const newUser = async (req, res) => {
     else {
       const newReq = new Employee({
         ...req.body,
+        orgId,
         workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], // 6 days
         workingDaysHistory: [
           {
@@ -73,7 +76,9 @@ export const updateUser = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    await Employee.findOneAndDelete({ uuid: userId }).exec();
+    const { orgId } = req.user;
+    await Employee.findOneAndDelete({ uuid: userId, orgId }).exec();
+    await Login.findOneAndDelete({ userUUID: userId, orgId }).exec();
     return res.status(200).json({ message: "User deleted successfully.", success: true, data: {} });
   } catch (error) {
     return res.status(400).json({ error, message: error.message || "Something went wrong." });
@@ -127,13 +132,13 @@ export const getFilteredUsers = async (req, res) => {
 
 export const getAll = async (req, res) => {
   try {
-    const user = req.user;
+    const {orgId} = req.user;
     const { skip = 0, limit = 20 } = req.query;
     const acceptLanguage = req.headers?.['accept-language'] || 'en-US';
     const locale = acceptLanguage.split(',')[0];
 
     // MongoDB query with pagination and population of departmentDetail
-    const docs = await Employee.find()
+    const docs = await Employee.find({orgId})
       .skip(parseInt(skip) * parseInt(limit)) // Skip logic for pagination
       .limit(parseInt(limit)) // Limit the number of results
       .sort({createdAt: -1}) // Sort data
@@ -151,7 +156,7 @@ export const getAll = async (req, res) => {
     });
 
     // Get the total count of filtered documents
-    const total = await Employee.countDocuments();
+    const total = await Employee.countDocuments({orgId});
     return res.status(200).json({message: "Users retrieved successfully.", success: true, data: { docs: formattedDocs, total }});
   } catch (error) {
     return res.status(500).json({message: "Server error.", success: false, data: null, error: error.message});
@@ -162,8 +167,9 @@ export const getAll = async (req, res) => {
 export const getUser = async (req, res) => {
   try {
     const { userId } = req.params; // Assuming the user ID is passed as a parameter
+    const { orgId } = req.user; // Assuming the user ID is passed as a parameter
     // Fetch the user with the provided ID and populate departmentDetail
-    const employee = await Employee.findOne({ uuid: userId })
+    const employee = await Employee.findOne({ uuid: userId, orgId })
       .populate('departmentDetail') // Populate the departmentDetail
       .exec();
 
@@ -189,10 +195,13 @@ export const getUser = async (req, res) => {
 export const deleteSingleUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { uuid, createdBy } = req.user;
-    let message = "Employee deleted.";
-    const result = await Employee.findOneAndDelete({uuid: userId, createdBy: {$in: [uuid, createdBy]}});
-    return res.status(200).json({success: true, message, data: result});
+    const { uuid, createdBy, orgId } = req.user;
+    const result = await Employee.findOneAndDelete({uuid: userId, orgId, createdBy: {$in: [uuid, createdBy]}});
+    if (result) {
+      await Login.findOneAndDelete({userUUID: userId, orgId});
+    }
+    let message = result ? "Employee deleted." : "Employee not found.";
+    return res.status(result?200:404).json({success: result != null, message, data: result});
   } catch (error) {
     return res.status(500).json({message: error.message, error: error.message});
   }
@@ -201,12 +210,13 @@ export const deleteSingleUser = async (req, res) => {
 export const deleteAll = async (req, res) => {
   try {
     const { employeeIds = [] } = req.body;
+    const { orgId } = req.user;
     let message = "Employee deleted.";
     if(Array.isArray(employeeIds) || employeeIds.length < 1){
       message = "Employeed Id list is required";
       return res.status(400).json({success: false, message, error: message});
     }
-    const result = await Employee.deleteMany({uuid: {$in: employeeIds}});
+    const result = await Employee.deleteMany({uuid: {$in: employeeIds}, orgId});
     return res.status(200).json({success: true, message, data: result});
   } catch (error) {
     return res.status(500).json({success: false, message: error.message, error: error.message});
@@ -217,15 +227,12 @@ export const deleteAll = async (req, res) => {
 export const updateWorkingDays = async (req, res) => {
   try {
     const { employeeId } = req.body;
-    const { uuid, role, createdBy } = req.user;
-    const user = await Employee.findOne({employeeId});
+    const { uuid, role, createdBy, orgId } = req.user;
+    const user = await Employee.findOne({employeeId, orgId, isActive: true});
     if (!user) {
-      return res.status(500).json({message: "User not found.", success: false, error: "User not found."});
+      return res.status(500).json({message: "User not found.", error: "User not found."});
     }
-  
-    const currentDate = moment();
     const oneYearAgo = moment().subtract(1, 'year');
-  
     // Check if the user should have a 5-day work week now
     const currentPolicy = user.workingDaysHistory[user.workingDaysHistory.length - 1];
     if (!currentPolicy || moment(currentPolicy.startDate).isBefore(oneYearAgo)) {

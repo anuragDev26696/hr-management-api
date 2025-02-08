@@ -79,6 +79,7 @@ const login = async (req, res) => {
       uuid: user.userDetails.uuid,
       email: user.email,
       role: user.role,
+      orgId: user.orgId,
       createdBy: user.userDetails ? user.userDetails.createdBy : null,  // Access the populated userDetails
     };
 

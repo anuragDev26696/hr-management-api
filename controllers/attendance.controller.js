@@ -6,12 +6,13 @@ import moment from "moment-timezone";
 const clockIn = async (req, res) => {
   try {
     const employeeId = req.user.uuid;
+    const orgId = req.user.orgId;
     const clockInTime = new Date();
-    const exstingData = await Attendance.findOne({employeeId, clockOutTime: {$in: [null, undefined], date: dateQuery(clockInTime)}});
+    const exstingData = await Attendance.findOne({employeeId, orgId, clockOutTime: {$in: [null, undefined], date: dateQuery(clockInTime.getFullYear(), clockInTime.getMonth())}});
     if(exstingData){
       res.status(400).json({data: exstingData, success: true, message: 'Already clocked In.'});
     }
-    const newAttendance = new Attendance({employeeId, clockInTime, createdBy: employeeId});
+    const newAttendance = new Attendance({employeeId, orgId, clockInTime, createdBy: employeeId});
     await newAttendance.save();
     res.status(201).json({data: newAttendance, success: true, message: 'Clock in successful.'});
   } catch (error) {
@@ -23,6 +24,7 @@ const clockIn = async (req, res) => {
 const clockOut = async (req, res) => {
   try {
     const employeeId = req.user.uuid;
+    const orgId = req.user.orgId;
     const clockOutTime = new Date();
     // Ensure the date part is correct for today's date (ignoring time part)
     const todayStart = new Date();
@@ -33,6 +35,7 @@ const clockOut = async (req, res) => {
     // Find the latest attendance record for today where the clock-out is missing
     const attendance = await Attendance.findOne({
       employeeId,
+      orgId,
       date: { $gte: todayStart, $lte: todayEnd },
       clockOutTime: { $in: [null, undefined] }, // Check for null or undefined clockOutTime
     }).sort({ clockInTime: -1 }); // Sort by clockInTime in descending order to get the most recent one
@@ -53,8 +56,9 @@ const clockOut = async (req, res) => {
 // Get attendance for a day
 const getDayAttendance = async (req, res) => {
   try {
+    const orgId = req.user.orgId;
     const { date = new Date(), employeeId } = req.params;
-    const attendance = await Attendance.find({ date: new Date(date) }).sort({createdAt: -1}).populate('employeeDetail').exec();
+    const attendance = await Attendance.find({ orgId, date: new Date(date) }).sort({createdAt: -1}).populate('employeeDetail').exec();
     const totalCount = await Attendance.countDocuments({ date: new Date(date) });
     const message = totalCount > 0 ? "Attendance retrieved." : "Attendance not found for this day";
     res.status(200).json({data: {docs: attendance, totalCount}, success: true, message});
@@ -66,8 +70,9 @@ const getDayAttendance = async (req, res) => {
 // Get attendance for a day
 const getEmployeeLatestAttendance = async (req, res) => {
   try {
-    const { uuid } = req.user;
-    const attendance = await Attendance.find({ date: dateQuery(new Date()), employeeId: uuid }).sort({createdAt: -1}).populate('employeeDetail').exec();
+    const { uuid, orgId } = req.user;
+    const today = new Date();
+    const attendance = await Attendance.find({ date: dateQuery(today.getFullYear(), today.getMonth()), employeeId: uuid, orgId }).sort({createdAt: -1}).populate('employeeDetail').exec();
     res.status(200).json({data: attendance[0] || null, success: true, message: attendance.length > 0 ? 'Attendance found.': 'Attendance not found.'});
   } catch (error) {
     res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error fetching attendance for the day' });
@@ -78,6 +83,8 @@ const getEmployeeLatestAttendance = async (req, res) => {
 const getEmployeesAttendance = async (req, res) => {
   try {
     const { date, employeeIds } = req.body;
+    const { uuid, orgId } = req.user;
+    const frmDate = new Date(date);
     let message = "";
     // Validation for employee id's
     if(!employeeIds || Array.isArray(employeeIds)){
@@ -91,7 +98,8 @@ const getEmployeesAttendance = async (req, res) => {
       return res.status(400).json({ data: null, message, success: false });
     }
     let query = {
-      date: dateQuery(date),
+      orgId,
+      date: dateQuery(frmDate.getFullYear(), frmDate.getMonth()),
       employeeIds: {$in: {employeeIds}}
     };
     const attendance = await Attendance.find(query).sort({createdAt: -1}).populate('employeeDetail').exec();
@@ -105,10 +113,11 @@ const getEmployeesAttendance = async (req, res) => {
 const getAttendanceForMonth = async (req, res) => {
   try {
     const { month, year } = req.params;
-    const { uuid } = req.user;
+    const { uuid, orgId } = req.user;
     let { employeeId = uuid } = req.query; // If employee id is in query otherwise it'll be requested user's id. 
 
     const attendance = await Attendance.find({
+      orgId,
       employeeId,
       date: dateQuery(year, month),
     }).sort({date: -1});
@@ -127,7 +136,8 @@ const getAttendanceForMonth = async (req, res) => {
 const markAbsenceOrManualClockOut = async (req, res) => {
   try {
     const { employeeId, date, status, clockOutTime, clockInTime, timezone } = req.body;  // Include timezone in the request
-    const adminId = req.user;
+    const adminId = req.user.uuid;
+    const orgId = req.user.orgId;
     let message = "";
 
     // 1. Validate required fields
@@ -165,7 +175,7 @@ const markAbsenceOrManualClockOut = async (req, res) => {
     }
 
     // 6. Validate employee existence
-    const employee = await Employee.findById(employeeId); // Assuming `Employee` is the model
+    const employee = await Employee.findOne({employeeId, orgId}); // Assuming `Employee` is the model
     if (!employee) {
       message = 'Employee does not exist.';
       return res.status(404).json({ data: null, message, success: false });
@@ -187,7 +197,7 @@ const markAbsenceOrManualClockOut = async (req, res) => {
     }
 
     // 9. Handle query for existing attendance records
-    const query = { employeeId, date: dateQuery(attendanceDate.year(), attendanceDate.month() + 1) };
+    const query = { employeeId, orgId, date: dateQuery(attendanceDate.year(), attendanceDate.month()) };
 
     if (status === 'Absent') {
       // 10. Mark as absent (update attendance status)
@@ -204,6 +214,7 @@ const markAbsenceOrManualClockOut = async (req, res) => {
         // 13. Create attendance record
         const attendance = new Attendance({
           employeeId,
+          orgId,
           date: attendanceDate.toDate(),
           status: 'Present',
           clockInTime: formattedClockInTime.toDate(),
@@ -231,9 +242,9 @@ const markAbsenceOrManualClockOut = async (req, res) => {
 };
 
 export function dateQuery(year, month) {
-  const startDate = new Date(year, month - 1, 1); // Start of the month
-  const endDate = new Date(year, month, 0); // End of the month
+  const startDate = new Date(year, month, 1); // Start of the month
+  const endDate = new Date(year, month+1, 0, 23, 59, 59); // End of the month
   return { $gte: startDate, $lte: endDate };
 }
 
-export { clockIn, clockOut, getDayAttendance as getAttendanceForDay, getAttendanceForMonth, markAbsenceOrManualClockOut, getEmployeesAttendance };
+export { clockIn, clockOut, getDayAttendance, getAttendanceForMonth, markAbsenceOrManualClockOut, getEmployeesAttendance, getEmployeeLatestAttendance };

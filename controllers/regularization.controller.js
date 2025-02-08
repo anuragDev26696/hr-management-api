@@ -66,8 +66,8 @@ export const requestList = async (req, res) => {
   try {
     const { skip=0, limit=20 } = req.query;
     const { uuid, role, orgId } = req.user;
-    let query;
-    if(role !== 'admin') query = {createdBy: uuid};
+    let query = {orgId};
+    if(role !== 'admin') query = {createdBy: uuid, orgId};
     // Fetch the regularization request and populate the employee details
     let request = await Regularization.aggregate(aggregation(skip, limit, query));
     const totalCount = await Regularization.countDocuments(query);
@@ -91,7 +91,7 @@ export const changeRegularizationRequestStatus = async (req, res) => {
 
   try {
     // Fetch the regularization request and populate the employee details
-    const request = await Regularization.findOne({ uuid: requestId }).populate('employeeDetail');
+    const request = await Regularization.findOne({ uuid: requestId, orgId }).populate('employeeDetail');
     if (!request) {
       message = 'Regularization request not found.';
       return res.status(404).json({ status: false, message, error: message });
@@ -116,15 +116,18 @@ export const changeRegularizationRequestStatus = async (req, res) => {
     // Mark the request as approved
     request.status = status;
     await request.save();
+    const attDate = new Date(request.attendanceDate);
 
     // Mark the old entry as invalid (or delete it if preferred)
     const existingAttendance = await Attendance.deleteMany({
       employeeId: request.employeeId,
-      date: dateQuery(request.attendanceDate),
+      orgId,
+      date: dateQuery(attDate.getFullYear(), attDate.getMonth()),
     });
 
     // Create new attendance record for the approved regularization
     const newAttendance = new Attendance({
+      orgId,
       employeeId: request.employeeId,
       clockInTime: request.clockInTime,
       clockOutTime: request.clockOutTime,
@@ -143,22 +146,22 @@ export const changeRegularizationRequestStatus = async (req, res) => {
       data: newAttendance,
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message, error: error.message || 'Something went wrong while approving the regularization request.' });
+    message = error.message || 'Something went wrong while approving the regularization request.';
+    return res.status(500).json({ message, error: message });
   }
 };
 
 export const deleteRequest = async (req, res) => {
+  let message = "Request deleted successfully.";
   try {
     const { requestId = "" } = req.params;
     const { uuid, orgId } = req.user;
-    let message = "Request deleted successfully.";
     if (requestId.trim() === '') {
       message = "Request id is required.";
       return res.status(400).json({error: message, message });
     }
     const request = await Regularization.findOneAndDelete({uuid: requestId, createdBy: uuid, status: {$eq: 'Pending'}});
     if(!request) message = "User didn't matched or request\'s status changed.";
-    console.log(request);
     return res.status(200).json({ message, success: true, data: request });
   } catch (error) {
     message = error.message || "Something went wrong while deleting regularization request.";

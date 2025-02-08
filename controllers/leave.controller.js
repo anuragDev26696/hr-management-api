@@ -5,9 +5,9 @@ import Leaves from '../models/leave.js'; // import schema
 // Create a leave request
 export const applyLeave =  async (req, res) => {
     try {
-        const { uuid } = req.user;
+        const { uuid, orgId } = req.user;
         // Check if employee exists
-        const employee = await Employee.findOne({uuid});
+        const employee = await Employee.findOne({uuid, orgId, isActive: true});
         if (!employee) {
             return res.status(404).json({ message: "Employee not found." });
         }
@@ -15,6 +15,7 @@ export const applyLeave =  async (req, res) => {
         // Generate leaveDays array (start/end dates and leave type)
         const leaveRequest = new Leaves({
             ...req.body,
+            orgId,
             employeeId: uuid,
             createdBy: uuid,
             leaveDays: generateLeaveDaysArray(req.body.startDate, req.body.endDate, []), // logic to create the leave days array
@@ -51,10 +52,10 @@ function generateLeaveDaysArray(startDate, endDate, leaveDays) {
 // Fetch all leave requests
 export const getLeaves = async (req, res) => {
     try {
-        let { uuid, role } = req.user;
+        let { uuid, role, orgId } = req.user;
         let { skip = 0, limit = 20, status = "", employeeId = uuid } = req.body;
         // employeeId = employeeId && employeeId.trim() !== '' ? employeeId : uuid; 
-        const leaveRequests = await Leaves.aggregate(generateLeaveAggregationQuery(employeeId, null, null, skip, limit, status));
+        const leaveRequests = await Leaves.aggregate(generateLeaveAggregationQuery(orgId, employeeId, null, null, skip, limit, status));
         const total = leaveRequests.length > 0 ? leaveRequests[0].totalCount : 0;
         const data = {docs: leaveRequests[0].data, total: leaveRequests[0].totalCount[0]?.count || 0};
         return res.status(200).json({data: data, message: 'Leaves retrived', success: true});
@@ -119,7 +120,7 @@ export const cancelLeave = async (req, res) => {
 export const monthlyLeaves = async (req, res) => {
     try {
         const { employeeId, month, year } = req.query;
-        const { isAdmin, uuid } = req.user;
+        const { role, uuid, orgId } = req.user;
 
         // Validate the month and year parameters
         if (!month || !year) {
@@ -134,7 +135,7 @@ export const monthlyLeaves = async (req, res) => {
         }
 
         // If in request employeeId is not match with loggedin user id or loggedin user is not Admin
-        if(!isAdmin && uuid !== employeeId){
+        if(role !== 'admin' && uuid !== employeeId){
             return res.status(401).json({ message: "Invalid employee", success: false, data: [] });
         }
         // It's an default query 
@@ -155,7 +156,7 @@ export const monthlyLeaves = async (req, res) => {
         // return res.status(200).json({ totalCount, filteredLeaves });
 
         // Get data by agreegation
-        const leaveRequests = await Leaves.aggregate(generateLeaveAggregationQuery(employeeId, leaveYear, leaveMonth));
+        const leaveRequests = await Leaves.aggregate(generateLeaveAggregationQuery(orgId, employeeId, leaveYear, leaveMonth));
         const total = leaveRequests.length > 0 && leaveRequests[0].totalCount.length > 0 ? leaveRequests[0].totalCount[0].count : 0;
         const data = {docs: leaveRequests[0].data, total};
         return res.status(200).json({ data, message: 'Leaves retrieved', success: true });
@@ -232,10 +233,11 @@ function aggregateLeaves(employeeId, leaveYear, leaveMonth) {
     ];
 }
 
-function generateLeaveAggregationQuery( employeeId="", leaveYear, leaveMonth, skip, limit, status ) {
+function generateLeaveAggregationQuery( orgId, employeeId="", leaveYear, leaveMonth, skip, limit, status ) {
     const matchCondition = {
         ...(employeeId.trim() !== '' && { createdBy: employeeId }), // Only add employeeId if it's passed
         ...(status && { status: status }), // Only add status if it's passed
+        orgId,
     };
 
     // Add a match condition for leaveDays.date for the given month and year
