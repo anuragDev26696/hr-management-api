@@ -44,7 +44,7 @@ const login = async (req, res) => {
     const { email, password } = req.body;
     // Aggregate to find the login by email and populate the 'userUUID' field
     const loginData = await Login.aggregate([
-      { $match: { email, isDeleted: false } },  // Match the user by email
+      { $match: { email, isDeleted: false, isActive: true } },  // Match the user by email
       {
         $lookup: {
           from: 'users',  // The collection you want to join with (assumes 'users' is the collection name)

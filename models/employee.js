@@ -154,6 +154,7 @@ employeeSchema.post("save", async function (doc) {
         password: null,
         userUUID: doc.uuid,
         orgId: doc.orgId,
+        isActive: doc.isActive,
       };
       const loginEntry = new Login(reqData);
       await loginEntry.save();

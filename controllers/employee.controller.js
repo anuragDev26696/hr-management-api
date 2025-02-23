@@ -65,7 +65,8 @@ export const updateUser = async (req, res) => {
       { $set: req.body },
       { new: true, runValidators: true } // `new: true` returns the updated document
     );
-    const data = await Employee.findOne({uuid: userId}).populate('departmentDetail').exec();;
+    existingItem = await Employee.findOne({uuid: userId}).populate('departmentDetail').exec();;
+    await Login.findOneAndUpdate({userUUID: userId}, {$set: {isActive: existingItem.isActive}});
     return res.status(200).json({data: existingItem, message: "User updated successfully.", success: true});
   } catch (error) {
     return res.status(400).json({ error, message: error.message || "Something went wrong." });

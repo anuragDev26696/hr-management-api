@@ -23,6 +23,18 @@ export const createRegularizationRequest = async (req, res) => {
       message = "Employee not found.";
       return res.status(400).json({ message, error: message });
     }
+    const startTime = new Date(moment(attendanceDate).startOf('day'));
+    const endTime = new Date(moment(attendanceDate).endOf('day'));
+    let searchQuery = {createdBy: uuid, status: 'Pending', attendanceDate: {$gte: startTime, $lte: endTime}};
+    let existingReq = await Regularization.find(searchQuery);
+    if(existingReq.length > 0){
+      message = "Already requested.";
+      return res.status(400).json({error: message, message, success: false})
+    }
+    if(moment(attendanceDate).weekday() === 0){
+      message = "You can't request for week off day.";
+      return res.status(400).json({error: message, message, success: false})
+    }
     const joiningDate = moment(user.joiningDate);
     const clockIn = moment.tz(clockInTime, timezone);
     const clockOut = moment.tz(clockOutTime, timezone);

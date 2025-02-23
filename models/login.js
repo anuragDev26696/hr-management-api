@@ -25,6 +25,7 @@ const loginSchema = new Schema({
     unique: true,
   },
   orgId: {type: String, default: "", required: true,},
+  isActive: {type: Boolean, default: true, required: true,},
 }, {
   timestamps: true,  // Automatically create createdAt and updatedAt fields
 });
