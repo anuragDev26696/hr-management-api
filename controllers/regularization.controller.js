@@ -2,53 +2,54 @@ import moment from "moment/moment.js";
 import { Attendance } from "../models/attendance.js";
 import Employee from "../models/employee.js";
 import { Regularization } from "../models/regularization.js";
-import { dateQuery } from "./attendance.controller.js";
 
 // Create a regularization request
 export const createRegularizationRequest = async (req, res) => {
   const { attendanceDate, clockInTime, clockOutTime, reason } = req.body;
   const { uuid, orgId } = req.user;
+  let message = "";
 
   try {
     const isValidDate = !isNaN(Date.parse(attendanceDate)); // Basic date check
     if (!isValidDate) {
-        message = 'Invalid date format.';
-        return res.status(400).json({ data: null, message, success: false });
+      message = 'Invalid date format.';
+      return res.status(400).json({ message, error: message });
     }
     // Convert times to employee's timezone
     const user = await Employee.findOne({uuid, isActive: true});
     const timezone = user?.timezone || "UTC"; // default to UTC if no timezone info found
 
+    if(!user){
+      message = "Employee not found.";
+      return res.status(400).json({ message, error: message });
+    }
+    const joiningDate = moment(user.joiningDate);
     const clockIn = moment.tz(clockInTime, timezone);
     const clockOut = moment.tz(clockOutTime, timezone);
     const attendance = moment.tz(attendanceDate, timezone);
+    const isSomeInvalid = clockIn.isBefore(joiningDate, 'day') || clockOut.isBefore(clockIn, 'day');
+    message = clockIn.isBefore(joiningDate, 'day') ? 'You can\'t apply for before joining date.' : clockOut.isBefore(clockIn, 'day') ? 'Clock out time should be gretter than clock in time' : '';
+    if(isSomeInvalid){
+      return res.status(400).json({ message, error: message });
+    }
 
     // Validate if the attendance date is a working day
     const isValidWorkingDay = isWorkingDay(user.workingDays, attendance);
     if (!isValidWorkingDay) {
-      return res.status(400)
-        .json({
-          data: null,
-          success: false,
-          error: "The attendance date is not a valid working day.",
-        });
+      message = "The attendance date is not a valid working day."
+      return res.status(400).json({ error: message, message });
     }
 
     // Verify the date and times align
     if (!attendance.isSame(clockIn, "day") || !attendance.isSame(clockOut, "day")) {
-      return res.status(400)
-        .json({
-          data: null,
-          success: false,
-          error:
-            "Clock-in time, clock-out time, and attendance date must be the same day.",
-        });
+      message = "Clock-in time, clock-out time, and attendance date must be the same day."
+      return res.status(400).json({ error: message, message });
     }
-
+    const startDateTime = moment(attendanceDate).startOf('day');
     const regularizationRequest = new Regularization({
       employeeId: uuid,
       createdBy: uuid,
-      attendanceDate: new Date(attendanceDate),
+      attendanceDate: new Date(startDateTime),
       clockInTime: new Date(clockInTime),
       clockOutTime: new Date(clockOutTime),
       reason,
@@ -56,7 +57,8 @@ export const createRegularizationRequest = async (req, res) => {
     });
 
     await regularizationRequest.save();
-    return res.status(201).json({data: regularizationRequest, success: true, messaage: "Regularization requested successfully."});
+    message = "Regularization requested successfully.";
+    return res.status(201).json({data: regularizationRequest, success: true, message});
   } catch (error) {
     return res.status(500).json({ message: error.message, error: error.message });
   }
@@ -118,12 +120,18 @@ export const changeRegularizationRequestStatus = async (req, res) => {
     await request.save();
     const attDate = new Date(request.attendanceDate);
 
-    // Mark the old entry as invalid (or delete it if preferred)
-    const existingAttendance = await Attendance.deleteMany({
+    // make beginnig of the day and end of the day time
+    const startDateTime = moment().startOf('day');
+    const endDateTime = moment().endOf('day');
+
+    //  Make query for delete other today's attendance
+    const delQuery = {
       employeeId: request.employeeId,
       orgId,
-      date: dateQuery(attDate.getFullYear(), attDate.getMonth()),
-    });
+      date: {$gte: startDateTime, $lte: endDateTime},
+    };
+    // Mark the old entry as invalid (or delete it if preferred)
+    const existingAttendance = await Attendance.deleteMany(delQuery);
 
     // Create new attendance record for the approved regularization
     const newAttendance = new Attendance({
@@ -222,4 +230,17 @@ function aggregation(skip, limit, query={}) {
       $sort: { createdAt: -1 },
     },
   ]
+}
+
+function dateQuery(year, month, title=null) {
+  // Start of the month at 00:00:00 local time
+  let startDate = new Date(year, month, 1);
+  startDate.setHours(0, 0, 0, 0); // Ensure time is at the start of the day
+  
+  // Last day of the month at 23:59:59 local time
+  let endDate = new Date(year, month + 1, 0);
+  endDate.setHours(23, 59, 59, 999); // Ensure time is at the end of the day
+ 
+ console.log(year, month, startDate, endDate, title);
+ return { $gte: startDate, $lte: endDate };
 }

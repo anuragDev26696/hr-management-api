@@ -4,12 +4,28 @@ import Leaves from '../models/leave.js'; // import schema
 
 // Create a leave request
 export const applyLeave =  async (req, res) => {
+    let message = "Leave applied successfully.";
     try {
         const { uuid, orgId } = req.user;
         // Check if employee exists
         const employee = await Employee.findOne({uuid, orgId, isActive: true});
         if (!employee) {
             return res.status(404).json({ message: "Employee not found." });
+        }
+        
+        // Validation for date
+        const isValidStartDate = !isNaN(Date.parse(new Date(req.body.startDate.date)));
+        const isValidEndDate = !isNaN(Date.parse(new Date(req.body.endDate.date)));
+        if (!isValidStartDate || !isValidEndDate) {
+            message = 'Invalid date format.';
+            return res.status(400).json({ error: message, message });
+        }
+        const joinDate = moment(employee.joiningDate);
+        const startDate = moment(req.body.startDate.date);
+        const endDate = moment(req.body.endDate.date);
+        if(startDate.isBefore(joinDate, 'day') || endDate.isBefore(startDate, 'day')){
+            message = endDate.isBefore(startDate, 'day') ? 'Start date should be before of the end date.' : 'You can\'t apply leave of the date before of the joining date.';
+            return res.status(400).json({ error: message, message });
         }
 
         // Generate leaveDays array (start/end dates and leave type)
@@ -23,7 +39,7 @@ export const applyLeave =  async (req, res) => {
 
         // Save leave request
         await leaveRequest.save();
-        return res.status(201).json({ message: "Leave applied successfully.", data: leaveRequest, success: true });
+        return res.status(201).json({ message, data: leaveRequest, success: true });
     } catch (err) {
         return res.status(400).json({ error: err.message, message: err.message || 'Something went wrong.' });
     }
@@ -35,12 +51,10 @@ function generateLeaveDaysArray(startDate, endDate, leaveDays) {
     const endMoment = moment(endDate.date);
 
     while (currentDate.isSameOrBefore(endMoment, 'day')) {
-        let leaveType = 'full_day'; // default to full day
-        if (leaveDays.includes(currentDate.format('YYYY-MM-DD'))) {
-            leaveType = 'half_day'; // mark as half day
-        }
+        const startMoment = moment(startDate.date);
+        let leaveType = currentDate.isSame(startMoment, 'day') ? startDate.leaveType : currentDate.isSame(endMoment, 'day') ? endDate.leaveType : 'full_day'; // default to full day
         days.push({
-            date: currentDate.toDate(),
+            date: new Date(currentDate.toDate()),
             leaveType
         });
         currentDate.add(1, 'days');

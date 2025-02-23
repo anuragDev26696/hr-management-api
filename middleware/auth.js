@@ -16,8 +16,7 @@ export const authGuard = (req, res, next) => {
     next(); // Call the next middleware or route handler
   } catch (err) {
     const {name, message, expiredAt} = err;
-    // console.error("type: ", JSON.stringify(err));
-    res.status(401).json({ data: null, success: false, message: message || 'Token is not valid', error: name });
+    return res.status(401).json({ data: null, success: false, message: message || 'Token is not valid', error: name });
   }
 };
 

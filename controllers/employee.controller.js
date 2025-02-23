@@ -19,7 +19,7 @@ export const newUser = async (req, res) => {
     if(!joiningDate){
       return res.status(400).json({success: false, error: 'Joining date is required.'})
     } 
-    const isValidDate = !isNaN(Date.parse(isValidDate));
+    const isValidDate = !isNaN(Date.parse(joiningDate));
     if (!isValidDate) {
       message = 'Invalid date format.';
       return res.status(400).json({ data: null, message, success: false });
@@ -88,8 +88,9 @@ export const deleteUser = async (req, res) => {
 // Get all filtered users with pagination
 export const getFilteredUsers = async (req, res) => {
   try {
-    const user = req.user;
-    const { skip = 0, limit = 20, role = "", search_string = "", isActive = true, } = req.body;
+    const loginId = req.user.uuid;
+    const loginRole = req.user.role;
+    const { skip = 0, limit = 20, role = "", search_string = "", isActive = null, } = req.body;
     // Initialize the query filter
     let query = {};
     // Extract the primary language from the 'accept-language' header
@@ -103,6 +104,12 @@ export const getFilteredUsers = async (req, res) => {
 
     // If a search string is provided, search in the name field (case-insensitive)
     query.name = { $regex: search_string, $options: "i" }; // Case-insensitive search in the name field
+    if (isActive != null && loginRole === 'admin') {
+      query.isActive = isActive;
+    }else {
+      query.isActive = true;
+    }
+    console.log(loginRole, query);
 
     // MongoDB query with pagination and population of departmentDetail
     const docs = await Employee.find(query)
@@ -132,13 +139,28 @@ export const getFilteredUsers = async (req, res) => {
 
 export const getAll = async (req, res) => {
   try {
-    const {orgId} = req.user;
-    const { skip = 0, limit = 20 } = req.query;
+    const {orgId, role} = req.user;
+    let { skip = 0, limit = 20, isActive=null } = req.query;
     const acceptLanguage = req.headers?.['accept-language'] || 'en-US';
     const locale = acceptLanguage.split(',')[0];
+    let query = {orgId}
+    // Correctly handle the isActive parameter
+    if (role === 'admin') {
+      if (isActive === 'true') { // Check for the string "true"
+        isActive = true;
+      } else if (isActive === 'false') { // Check for the string "false"
+        isActive = false;
+      } else if (isActive === 'null' || isActive === undefined) { // Check for "null" or undefined
+        isActive = null;  // Explicitly set to null
+      }
+      if(isActive != null)
+        query = { orgId, isActive: isActive }; // Use the correctly typed isActive
+    } else {
+      query = { orgId, isActive: true }; // Enforce isActive: true for non-admins
+    }
 
     // MongoDB query with pagination and population of departmentDetail
-    const docs = await Employee.find({orgId})
+    const docs = await Employee.find(query)
       .skip(parseInt(skip) * parseInt(limit)) // Skip logic for pagination
       .limit(parseInt(limit)) // Limit the number of results
       .sort({createdAt: -1}) // Sort data
@@ -156,7 +178,7 @@ export const getAll = async (req, res) => {
     });
 
     // Get the total count of filtered documents
-    const total = await Employee.countDocuments({orgId});
+    const total = await Employee.countDocuments(query);
     return res.status(200).json({message: "Users retrieved successfully.", success: true, data: { docs: formattedDocs, total }});
   } catch (error) {
     return res.status(500).json({message: "Server error.", success: false, data: null, error: error.message});

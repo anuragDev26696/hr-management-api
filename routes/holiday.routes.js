@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { addHoliday, deleteHolidays, getHolidaysByMonth, getHolidaysByYear } from '../controllers/holiday.controller.js';
+import { addHoliday, deleteHolidays, getHolidaysByMonth, getHolidaysByYear, updateHoliday } from '../controllers/holiday.controller.js';
 import { adminGuard, authGuard } from '../middleware/auth.js';
 const holidayRoutes = Router();
 
@@ -7,6 +7,8 @@ const holidayRoutes = Router();
 holidayRoutes.post('/', authGuard, adminGuard, addHoliday);
 // Get all holidays
 holidayRoutes.get('/month', authGuard, getHolidaysByMonth);
+// Delete holiday
+holidayRoutes.patch('/:uuid', authGuard, updateHoliday);
 // Delete holiday
 holidayRoutes.delete('/:uuid', authGuard, deleteHolidays);
 // Get holiday calendar

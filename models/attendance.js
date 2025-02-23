@@ -42,7 +42,7 @@ const attendanceSchema = new Schema({
 // Virtual field: employeeDetail (populates emplooyee)
 attendanceSchema.virtual('employeeDetail', {
   ref: 'users', // Reference to Employee model
-  localField: 'employeedId', // Field in the This schema
+  localField: 'employeeId', // Field in the This schema
   foreignField: 'uuid', // Field in the Employee schema
   justOne: true, // We expect only one employee
   options: {
