@@ -1,6 +1,8 @@
 import Employee from "../models/employee.js";
+import { LeaveBalance } from "../models/leaveBalance.js";
 import Login from "../models/login.js";
 import { v4 as uuidv4 } from "uuid"; // Use uuidv4 for generating UUIDs
+import moment from "moment";
 
 // Create new user
 export const newUser = async (req, res) => {
@@ -39,6 +41,23 @@ export const newUser = async (req, res) => {
       });
       const newUser = await newReq.save();
       const data = await Employee.findById(newUser._id).populate('departmentDetail').exec();
+      // Calculate the number of days remaining in the current year
+      const joiningDate = moment(data.joiningDate);
+      const currentYear = moment().year();
+      const endOfYear = moment(`${currentYear}-12-31`);
+      const daysInYear = endOfYear.diff(moment(`${currentYear}-01-01`), 'days') + 1; // +1 to include the current day
+      const remainingDays = endOfYear.diff(joiningDate, 'days');
+
+      // Calculate remaining LOP leaves based on the ratio of remaining days to total days in the year
+      const remainingLopLeavesRatio = (remainingDays / daysInYear) * 365;
+      const newLeaveBalance = new LeaveBalance({
+        employeeId: data.uuid,
+        orgId: data.orgId,
+        lastCreditDate: new Date(joiningDate),
+        remainingLopLeaves: remainingLopLeavesRatio,
+        creditedCasualLeaves: ((12-joiningDate)/12)* 18,
+      });
+      await newLeaveBalance.save();
       return res.status(200).json({ data, message: "User created successfully.", success: true });
     }
   } catch (error) {

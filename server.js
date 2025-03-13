@@ -10,6 +10,7 @@ import leaveRoutes from './routes/leave.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import holidayRoutes from './routes/holiday.routes.js';
 import regularizationRoutes from './routes/regularization.routes.js';
+import './cron-jobs.js';
 const app = express();
 
 config(); // configure dotenv
