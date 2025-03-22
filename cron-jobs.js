@@ -3,6 +3,7 @@ import moment from 'moment';
 import Employee from './models/employee.js';
 import { LeaveBalance } from './models/leaveBalance.js';
 import { Holiday } from './models/holiday.js';
+import { deleteOldActivities } from './controllers/activity.controller.js';
 
 // Function to check if the 1st January is a holiday or weekend
 const isHolidayOrWeekend = async (date) => {
@@ -17,56 +18,6 @@ const isHolidayOrWeekend = async (date) => {
 
   // Check if the date is a holiday (assuming holidays API returns list of holidays)
   return holidays.some(holiday => moment(holiday.date).isSame(date, 'day'));
-};
-
-// Main function to update LeaveBalance for all employees
-const updateLeaveBalance = async () => {
-  const currentYear = moment().year();
-  const firstDayOfYear = moment(`${currentYear}-01-01`);
-
-  // If today is a Sunday or a holiday, check the next working day
-  if (await isHolidayOrWeekend(firstDayOfYear)) {
-    let nextWorkingDay = firstDayOfYear.clone().add(1, 'days').isoWeekday(1); // Move to next Monday if Sunday or Holiday
-    while (await isHolidayOrWeekend(nextWorkingDay)) {
-      nextWorkingDay = nextWorkingDay.clone().add(1, 'days').isoWeekday(1); // Keep moving until it's a working day
-    }
-    console.log(`Today is a holiday or weekend, updating on next working day: ${nextWorkingDay.format('YYYY-MM-DD')}`);
-    // Schedule a new cron job for the next working day
-    scheduleLeaveBalanceUpdate(nextWorkingDay);
-    return; // We won't update today, will reschedule for next working day
-  }
-
-  // Get all employees who haven't been updated this year
-  const updatedEmployees = await LeaveBalance.find({ updatedAt: { $gte: firstDayOfYear } });
-  const updatedEmployeeIds = updatedEmployees.map(emp => emp.employeeId);
-
-  // Get all employees who need their leave balance updated
-  const employees = await Employee.find({
-    uuid: { $nin: updatedEmployeeIds },
-  });
-
-  for (const employee of employees) {
-    // Calculate remaining LOP leaves for the year
-    const remainingDays = moment(`${currentYear}-12-31`).diff(moment(employee.joiningDate), 'days');
-    const totalDaysInYear = moment(`${currentYear}-12-31`).diff(moment(`${currentYear}-01-01`), 'days') + 1; // Include today
-    const remainingLopLeaves = (remainingDays / totalDaysInYear) * 365;
-
-    // Create or update the LeaveBalance for the employee
-    const leaveBalance = new LeaveBalance({
-      employeeId: employee.uuid,
-      orgId: employee.orgId,
-      lastCreditDate: new Date().toUTCString(),
-      appliedLopLeaves: 0,
-      remainingLopLeaves,
-      totalLopLeaves: 0,
-      appliedCasualLeaves: 0,
-      remainingCasualLeaves: 1.5,
-    });
-
-    await leaveBalance.save();
-  }
-
-  console.log('Leave balance updated for employees who have not been updated.');
 };
 
 // Function to update LeaveBalance for all employees monthly
@@ -88,51 +39,48 @@ const updateMonthlyLeave = async (date) => {
     return;
   }
 
+  // Fetch all active employees
+  const activeEmployees = await Employee.find({ isActive: true });
+    
   // If it's January, create new records for each active employee
   if (currentMonth === 0) {
-    const activeEmployees = await Employee.find({ isActive: true });
     for (const emp of activeEmployees) {
-      const newLeaveBalance = new LeaveBalance({
-        employeeId: emp.uuid,
-        orgId: emp.orgId,
-        lastCreditDate: new Date(monthStartDate),
-        appliedLopLeaves: 0,
-        remainingLopLeaves: 0,
-        totalLopLeaves: 0,
-        appliedCasualLeaves: 0,
-        remainingCasualLeaves: 1.5,
-        creditedCasualLeaves: 1.5,
-      });
-      await newLeaveBalance.save();
+      const leaveDoc = await LeaveBalance.findOne({employeeId: emp.uuid, orgId: emp.orgId});
+      if (!leaveDoc) continue; // Skip if no leave record found
+      leaveDoc.leaveHistory.push(
+        {
+          year: moment().subtract(1, 'year').startOf('year').toDate(),
+          appliedCL: leaveDoc.appliedCL,
+          appliedLOP: leaveDoc.appliedLOP,
+          remainedCL: leaveDoc.remainingCL
+        }
+      );
+      leaveDoc.lastCreditDate = new Date().toUTCString(),
+      leaveDoc.appliedCL = 0;
+      leaveDoc.appliedLOP = 0;
+      leaveDoc.remainingCL = (leaveDoc.remainingCL || 0) + 1.5;
+      await leaveDoc.save(); 
     }
     console.log('Created new leave balances for active employees in January.');
     return;
   }
 
-  // Get all leaveBalance records for the previous month
-  const leaveBalanceDocs = await LeaveBalance.find({
+  // Update monthly leave balance for employees who haven't been updated yet
+  const updatedEmployees = await LeaveBalance.find({
     lastCreditDate: { $gte: preMonthStartDate, $lte: preMonthEndDate },
-  });
-  const updatedEmployeeIds = leaveBalanceDocs.map((emp) => emp.employeeId);
-  // Get all active employees who haven't been updated yet this month
-  const employees = await Employee.find({ uuid: { $nin: updatedEmployeeIds }, isActive: true });
+  }).distinct("employeeId");
 
-  for (const leave of leaveBalanceDocs) {
-    const emp = employees.find((item) => item.uuid === leave.employeeId);
-    if (emp) {
-      const reqData = { 
-        lastCreditDate: monthStartDate,
-        creditedCasualLeaves: leave.creditedCasualLeaves + 1.5,
-        remainingCasualLeaves: leave.remainingCasualLeaves +1.5, 
-      };
-      await LeaveBalance.findOneAndUpdate(
-        { uuid: leave.uuid, employeeId: emp.uuid },
-        { $set: reqData }
-      );
+  const employeesToUpdate = activeEmployees.filter(emp => !updatedEmployees.includes(emp.uuid));
+
+  await LeaveBalance.updateMany(
+    { employeeId: {$in: employeesToUpdate.map(emp => emp.uuid)} },
+    {
+      $set: {lastCreditDate: monthStartDate},
+      $inc: { lastCreditedCL: 1.5, remainingCL: 1.5 },
     }
-  }
-
+  );
   console.log('Leave balance updated for employees who have not been updated.');
+  await deleteOldActivities();
 };
 
 // Function to schedule the leave balance update on a specific date

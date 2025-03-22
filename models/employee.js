@@ -29,8 +29,11 @@ const employeeSchema = new mongoose.Schema(
       enum: ["admin", "hr", "project manager", "employee"],
       required: true,
     },
-    isAdmin: { type: Boolean, default: false },
-    isHR: { type: Boolean, default: false },
+    permissions: {
+      type: [String],
+      enum: ["payroll", "employee", "leave", "attendance", "holiday"],
+      default: [],
+    },
     gender: { type: String, enum: ["Male", "Female"] },
     department: {
       type: String,
@@ -136,9 +139,6 @@ employeeSchema.pre("save", function (next) {
     }
   }
 
-  // Set role-specific fields based on the role
-  this.isAdmin = this.role === "admin";
-  this.isHR = this.role === "hr";
   next();
 });
 

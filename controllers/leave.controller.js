@@ -1,16 +1,28 @@
 import moment from 'moment';
 import Employee from '../models/employee.js';
 import Leaves from '../models/leave.js'; // import schema
+import { LeaveBalance } from '../models/leaveBalance.js';
+import { newLogActivity } from './activity.controller.js';
 
 // Create a leave request
 export const applyLeave =  async (req, res) => {
     let message = "Leave applied successfully.";
     try {
-        const { uuid, orgId } = req.user;
+        const { uuid, orgId, name, role } = req.user;
+        const {isApplyCL} = req.body;
         // Check if employee exists
         const employee = await Employee.findOne({uuid, orgId, isActive: true});
         if (!employee) {
             return res.status(404).json({ message: "Employee not found." });
+        }
+
+        // Ensure leave balance exists
+        await createLeaveBalanceIfNotExists(uuid, orgId);
+        // Fetch leave balance after creation (if it didn't exist before)
+        const leaveBalanceDoc = await LeaveBalance.findOne({employeeId: uuid});
+        if(!leaveBalanceDoc){
+            message = "Leave balance is not available.";
+            return res.status(400).json({message, error: message});
         }
         
         // Validation for date
@@ -29,16 +41,47 @@ export const applyLeave =  async (req, res) => {
         }
 
         // Generate leaveDays array (start/end dates and leave type)
+        const leaveDays = generateLeaveDaysArray(req.body.startDate, req.body.endDate, []).days;
+        const dayCounts = generateLeaveDaysArray(req.body.startDate, req.body.endDate, []).daysCount;
+        let remainingCL = leaveBalanceDoc.remainingCL;
+        let deductedCL = 0;
+        let deductedLOP = 0;
+
+        if (isApplyCL) {
+            if (dayCounts <= remainingCL) {
+                // Deduct all from CL
+                deductedCL = dayCounts;
+            } else {
+                // Deduct available CL, and the remaining from LOP
+                deductedCL = remainingCL;
+                deductedLOP = dayCounts - remainingCL;
+            }
+        } else {
+            // Deduct everything from LOP
+            deductedLOP = dayCounts;
+        }
         const leaveRequest = new Leaves({
             ...req.body,
             orgId,
             employeeId: uuid,
             createdBy: uuid,
-            leaveDays: generateLeaveDaysArray(req.body.startDate, req.body.endDate, []), // logic to create the leave days array
+            leaveDays,
+            deductedCL, deductedLOP
         });
+        console.log(leaveRequest.toJSON());
 
         // Save leave request
         await leaveRequest.save();
+        // Update leave balance
+        await LeaveBalance.updateOne({ employeeId: uuid }, {
+            $inc: {
+                remainingCL: -deductedCL,
+                appliedCL: deductedCL,
+                appliedLOP: deductedLOP
+            }
+        });
+        let activity_message = `${name} applied ${deductedCL} casual leave and ${deductedLOP} LOP leave.`;
+        await newLogActivity(uuid, role, name, 'Leave', 'Applied Leave', orgId, activity_message);
         return res.status(201).json({ message, data: leaveRequest, success: true });
     } catch (err) {
         return res.status(400).json({ error: err.message, message: err.message || 'Something went wrong.' });
@@ -49,6 +92,7 @@ function generateLeaveDaysArray(startDate, endDate, leaveDays) {
     const days = [];
     let currentDate = moment(startDate.date);
     const endMoment = moment(endDate.date);
+    let daysCount = 0;
 
     while (currentDate.isSameOrBefore(endMoment, 'day')) {
         const startMoment = moment(startDate.date);
@@ -57,10 +101,11 @@ function generateLeaveDaysArray(startDate, endDate, leaveDays) {
             date: new Date(currentDate.toDate()),
             leaveType
         });
+        daysCount += leaveType === 'full_day' ? 1 : 0.5;
         currentDate.add(1, 'days');
     }
 
-    return days;
+    return {days, daysCount};
 }
 
 // Fetch all leave requests
@@ -78,16 +123,38 @@ export const getLeaves = async (req, res) => {
     }
 };
 
+// Fetch leave status of the employee
+export const getLeaveStatus = async (req, res) => {
+    try {
+        let { uuid, orgId } = req.user;
+        // employeeId = employeeId && employeeId.trim() !== '' ? employeeId : uuid; 
+        const doc = await LeaveBalance.findOne({employeeId: uuid, orgId });
+        const message = 'Leave balamce ' + (doc == null ? 'not found.' :  'found.');
+        if(doc == null){
+            return res.status(404).json({error: message, message});
+        }
+        return res.status(200).json({data: doc, message, success: true});
+    } catch (err) {
+        return res.status(500).json({ error: err.message, message: err.message || 'Something went wrong.' });
+    }
+};
+
 // Update leave status (admin or HR approval/rejection)
 export const updateStatus = async (req, res) => {
     try {
         const { status, leaveIds=[] } = req.body;
-        const { uuid } = req.user;
+        const { uuid, role, name, orgId } = req.user;
         if (!status || leaveIds.length < 1 || !['approve', 'reject'].includes(status)) {
             return res.status(404).json({ message: "Provide a complete data." });
         }
         const mdStatus = status === 'approve' ? 'approved' : 'rejected';
-        let result = await Leaves.updateMany(
+        // update leave balance if status is reject.
+        if(status === 'reject'){
+            const leaveQuery = {uuid: {$in: leaveIds}, status: 'pending'};
+            await creditLeaves(leaveQuery);
+        }
+        // Update leave status
+        await Leaves.updateMany(
             { uuid: {$in: leaveIds}, status: 'pending' },
             { $set: {
                 status: mdStatus,
@@ -95,8 +162,9 @@ export const updateStatus = async (req, res) => {
                 updatedAt: Date.now(),
             } },
         );
-        result = await Leaves.find({uuid: {$in: leaveIds}});
-        return res.status(200).json({ message: "Leave status updated.", data: result, success: true });
+        const updatedLeaves = await Leaves.find({uuid: {$in: leaveIds}});
+        await newLogActivity(uuid, role, name, 'Leave', mdStatus+' Leave', orgId, `${name} ${mdStatus} ${leaveIds.length} leave.`);
+        return res.status(200).json({ message: "Leave status updated.", data: updatedLeaves, success: true });
     } catch (err) {
         return res.status(400).json({ error: err.message, message: err.message || 'Server Error.' });
     }
@@ -106,9 +174,13 @@ export const updateStatus = async (req, res) => {
 export const cancelLeave = async (req, res) => {
     try {
         const employeeId = req.user.uuid;
+        const {name, role, orgId} = req.user;
         const {id} = req.params;
         if (Array.isArray(id)) {
-            const result = await Leaves.deleteMany({ uuid: {$in: id}, status: 'pending', employeeId: employeeId });
+            const leaveQuery = {uuid: {$in: id}, status: 'pending', employeeId: employeeId};
+            await creditLeaves(leaveQuery);  // update leave balance
+            const result = await Leaves.deleteMany(leaveQuery);
+            await newLogActivity(employeeId, role, name, 'Leave', 'Cancel Leave', orgId, `${name} Canceled ${id.length} leave.`);
             return res.status(200).json({ message: "Leave status updated.", data: result, success: true });
         } else {
             const leaveRequest = await Leaves.findOne({uuid: id, employeeId});
@@ -120,9 +192,9 @@ export const cancelLeave = async (req, res) => {
             if (leaveRequest.status !== 'pending') {
                 return res.status(400).json({ message: "Leave request cannot be cancel after approval/rejection." });
             }
-
-            // Update the status and approver
+            await updateLeaveBalance(leaveRequest); // Update leave balance before canceling
             const result = await Leaves.findOneAndDelete({uuid: id, employeeId});
+            await newLogActivity(employeeId, role, name, 'Leave', 'Cancel Leave', orgId, `${name} Canceled leave.`);
             return res.status(200).json({ message: "Leave Canceled.", data: result, success: true });
         }
     } catch (err) {
@@ -130,6 +202,44 @@ export const cancelLeave = async (req, res) => {
     }
 };
 
+const creditLeaves = async (leaveQuery) => {
+    const leaveDocs = await Leaves.find(leaveQuery);
+    const leaveBalanceUpdate = new Map();
+    for(let doc of leaveDocs){
+        let leaveBalanceDoc = leaveBalanceUpdate.get(doc.employeeId);
+        if(!leaveBalanceDoc){
+            leaveBalanceDoc = await LeaveBalance.findOne({employeeId: doc.employeeId});
+            leaveBalanceUpdate.set(doc.employeeId, leaveBalanceDoc);
+        }
+        leaveBalanceDoc.remainingCL += doc.deductedCL;
+        leaveBalanceDoc.appliedLOP -= doc.deductedLOP;
+        leaveBalanceDoc.appliedCL -= doc.deductedCL;
+    }
+    // Update all leave balances in parallel
+    await Promise.all(Array.from(leaveBalanceUpdate.values()).map(doc => doc.save()));
+}
+
+const updateLeaveBalance = async (leaveRequest) => {
+    let leaveBalanceDoc = await LeaveBalance.findOne({ employeeId: leaveRequest.employeeId });
+    if (!leaveBalanceDoc) return;
+    // Deduct leaves
+    leaveBalanceDoc.remainingCL += leaveRequest.deductedCL;
+    leaveBalanceDoc.appliedLOP -= leaveRequest.deductedLOP;
+    leaveBalanceDoc.appliedCL -= leaveRequest.deductedCL;
+
+    // const daysCount = calculateLeaveDays(leaveRequest.leaveDays);
+    // if (leaveRequest.leaveType === 'CL') {
+    //     leaveBalanceDoc.remainingCL += daysCount;
+    // } else {
+    //     leaveBalanceDoc.remainingLOP += daysCount;
+    // }
+    await leaveBalanceDoc.save(); // Save only the updated fields
+};
+
+// Function to calculate leave days
+const calculateLeaveDays = (leaveDays) => {
+    return leaveDays.reduce((total, day) => total + (day.leaveType === 'full_day' ? 1 : 0.5), 0);
+};
 
 export const monthlyLeaves = async (req, res) => {
     try {
@@ -176,6 +286,29 @@ export const monthlyLeaves = async (req, res) => {
         return res.status(200).json({ data, message: 'Leaves retrieved', success: true });
     } catch (err) {
         return res.status(400).json({ error: err.message, message: err.message || 'Something went wrong.' });
+    }
+};
+
+export const createLeaveBalanceIfNotExists = async (employeeId, orgId) => {
+    try {
+        const existingLeaveBalance = await LeaveBalance.findOne({ employeeId });
+
+        if (!existingLeaveBalance) {
+            const newLeaveBalance = new LeaveBalance({
+                employeeId,
+                orgId,
+                lastCreditDate: new Date(), // Setting credit date to current date
+            });
+
+            await newLeaveBalance.save();
+            console.log(`Leave balance created for Employee ID: ${employeeId}`);
+            return newLeaveBalance;
+        }
+
+        return existingLeaveBalance;
+    } catch (error) {
+        console.error("Error creating leave balance:", error);
+        throw error;
     }
 };
 

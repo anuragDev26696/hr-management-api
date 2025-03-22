@@ -50,3 +50,21 @@ export function roleGuard(allowedRoles = []) {
     next();
   };
 }
+
+// Middleware to check if the user has the required permission
+export const checkPermission = (requiredPermission) => {
+  return async (req, res, next) => {
+    try {
+      const user = req.user;
+      // Check if the HR has the required permission
+      if (!user.permissions || !user.permissions.includes(requiredPermission)) {
+        return res.status(403).json({ message: `Access Denied: No ${requiredPermission} permission` });
+      }
+
+      // If permission exists, proceed to the next middleware or route handler
+      next();
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+};

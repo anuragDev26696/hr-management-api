@@ -1,7 +1,7 @@
 import Employee from "../models/employee.js";
 import { LeaveBalance } from "../models/leaveBalance.js";
 import Login from "../models/login.js";
-import { v4 as uuidv4 } from "uuid"; // Use uuidv4 for generating UUIDs
+// import { v4 as uuidv4 } from "uuid"; // Use uuidv4 for generating UUIDs
 import moment from "moment";
 
 // Create new user
@@ -54,8 +54,6 @@ export const newUser = async (req, res) => {
         employeeId: data.uuid,
         orgId: data.orgId,
         lastCreditDate: new Date(joiningDate),
-        remainingLopLeaves: remainingLopLeavesRatio,
-        creditedCasualLeaves: ((12-joiningDate)/12)* 18,
       });
       await newLeaveBalance.save();
       return res.status(200).json({ data, message: "User created successfully.", success: true });

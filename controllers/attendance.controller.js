@@ -1,27 +1,30 @@
 import { Attendance } from "../models/attendance.js";
 import Employee from "../models/employee.js";
 import moment from "moment-timezone";
+import { newLogActivity } from "./activity.controller.js";
 
 // Clock-in an employee
 const clockIn = async (req, res) => {
   try {
     const employeeId = req.user.uuid;
-    const orgId = req.user.orgId;
-    const startDayTime = moment().startOf('date');
-    const endDayTime = moment().endOf('date');
+    const {orgId, role, name} = req.user;
+    const startDayTime = moment().startOf('day').toDate();
+    const endDayTime = moment().endOf('day').toDate();
     const clockInTime = new Date();
     // Query for an existing attendance record where clockOutTime is either null or undefined within the same month
     const exstingData = await Attendance.findOne({
       employeeId,
       orgId,
-      clockOutTime: { $in: [null, undefined] }, // Check if clockOutTime is null or undefined
+      clockOutTime: null, // Check if clockOutTime is null or undefined
       date: { $gte: startDayTime, $lte: endDayTime } // Check for the same month based on dateQuery
     });
     if(exstingData){
-      return res.status(400).json({data: exstingData, success: true, message: 'Already clocked In.'});
+      return res.status(400).json({data: exstingData, error: 'Already clocked In.', message: 'Already clocked In.'});
     }
-    const newAttendance = new Attendance({employeeId, orgId, date: new Date(startDayTime), clockInTime, createdBy: employeeId});
+    const newAttendance = new Attendance({employeeId, orgId, date: startDayTime, clockInTime, createdBy: employeeId});
     await newAttendance.save();
+    const formattedClockInTime = moment(clockInTime).format('hh:mm a');
+    await newLogActivity(employeeId, role, name, 'Attendance', 'Clock in', orgId, `${name} clockin at ${formattedClockInTime}`);
     return res.status(201).json({data: newAttendance, success: true, message: 'Clock in successful.'});
   } catch (error) {
     return res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error clocking in' });
@@ -32,7 +35,7 @@ const clockIn = async (req, res) => {
 const clockOut = async (req, res) => {
   try {
     const employeeId = req.user.uuid;
-    const orgId = req.user.orgId;
+    const {orgId, role, name} = req.user;
     const clockOutTime = new Date();
     // Ensure the date part is correct for today's date (ignoring time part)
     const todayStart = new Date();
@@ -55,6 +58,8 @@ const clockOut = async (req, res) => {
     attendance.clockOutTime = clockOutTime;
     attendance.totalHours = (clockOutTime - attendance.clockInTime) / (1000 * 60 * 60); // Calculate in hours
     await attendance.save();
+    const formattedClockOutTime = moment(attendance.clockOutTime).format('hh:mm a');
+    await newLogActivity(employeeId, role, name, 'Attendance', 'Clock out', orgId, `${name} clock out at ${formattedClockOutTime}`);
     return res.status(200).json({data: attendance.populate('employeeDetail'), success: true, message: 'Clocked out successfully.'});
   } catch (error) {
     return res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error clocking out' });
@@ -89,6 +94,42 @@ const getEmployeeLatestAttendance = async (req, res) => {
     return res.status(200).json({data: attendance[0] || null, success: true, message: attendance.length > 0 ? 'Attendance found.': 'Attendance not found.'});
   } catch (error) {
     return res.status(500).json({ error: error.message || error || "something went wrong", message: 'Error fetching attendance for the day' });
+  }
+};
+
+// API to get today's attendance summary
+export const attendanceSummary = async (req, res) => {
+  try {
+    // Define the late check-in threshold (e.g., after 9:30 AM)
+    const LATE_CHECKIN_TIME = moment().set({ hour: 9, minute: 30, second: 0 });
+    const {orgId} = req.user;
+    const today =  moment().startOf('day').toDate();
+    // Fetch attendance records & total employees in parallel
+    const [attendances, totalEmployee] = await Promise.all([
+      Attendance.find({ date: { $gte: today }, orgId: orgId }, "employeeId clockInTime"),
+      Employee.countDocuments({ orgId: orgId, isActive: true }),
+    ]);
+    // Here we can use { employeeId: 1, clockInTime: 1, _id: 0 } for return limited fields
+    // Here we can also use same like  "employeeId clockInTime" for return limited fields
+    const presentEmployees = new Set();
+    const lateClockins = new Set();
+    attendances.forEach((item) => {
+      if(!presentEmployees.has(item.employeeId) && item.clockInTime != null){
+        presentEmployees.add(item.employeeId);
+      }
+      // Check if clock-in was late
+      if (moment(item.clockInTime).isAfter(LATE_CHECKIN_TIME) && !lateClockins.has(item.employeeId)) {
+        lateClockins.add(item.employeeId);
+      }
+    });
+    const data = {
+      present: presentEmployees.size,
+      absent: totalEmployee - presentEmployees.size,
+      lateCheckins: lateClockins.size,
+    };
+    return res.status(200).json({data, message: "Data retrived.", success: true});
+  } catch (error) {
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 

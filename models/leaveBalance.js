@@ -11,31 +11,23 @@ const leaveBalanceSchema = new Schema({
         type: String,
         required: [true, 'Organization Id is required.'],
     },
-    totalCasualLeaves: {
+    // totalCasualLeaves: {
+    //     type: Number,
+    //     default: 0,
+    // },
+    lastCreditedCL: {
         type: Number,
         default: 0,
     },
-    creditedCasualLeaves: {
+    remainingCL: {
         type: Number,
         default: 0,
     },
-    remainingCasualLeaves: {
+    appliedCL: {
         type: Number,
         default: 0,
     },
-    appliedCasualLeaves: {
-        type: Number,
-        default: 0,
-    },
-    totalLopLeaves: {
-        type: Number,
-        default: 0,
-    },
-    remainingLopLeaves: {
-        type: Number,
-        default: 0,
-    },
-    appliedLopLeaves: {
+    appliedLOP: {
         type: Number,
         default: 0,
     },
@@ -43,25 +35,25 @@ const leaveBalanceSchema = new Schema({
         type: Date,
         default: new Date(),
         required: [true, "Credit date is required."]
-    }
-    // leaveHistory: [{
-    //     month: {
-    //         type: Date,
-    //         required: [true, 'Month is required for history'],
-    //     },
-    //     credited: {
-    //         type: Number,
-    //         default: 0,
-    //     },
-    //     applied: {
-    //         type: Number,
-    //         default: 0,
-    //     },
-    //     remaining: {
-    //         type: Number,
-    //         default: 0,
-    //     },
-    // }],
+    },
+    leaveHistory: [{
+        year: {
+            type: Date,
+            required: [true, 'Year is required for history'],
+        },
+        appliedCL: {
+            type: Number,
+            default: 0,
+        },
+        appliedLOP: {
+            type: Number,
+            default: 0,
+        },
+        remainedCL: {
+            type: Number,
+            default: 0,
+        },
+    }],
 });
 
 leaveBalanceSchema.add(genericSchema);
