@@ -32,7 +32,7 @@ const leaveRequestSchema = new Schema({
         leaveType: { 
             type: String, 
             enum: ['half_day', 'full_day'], 
-            required: [true, 'Leave type is required.'],
+            required: [true, 'Start Leave type is required.'],
         }
     },
     endDate: {
@@ -43,7 +43,7 @@ const leaveRequestSchema = new Schema({
         leaveType: { 
             type: String, 
             enum: ['half_day', 'full_day'],
-            required: [true, 'Leave type is required.'],
+            required: [true, 'End Leave type is required.'],
         },
     },
     status: {
@@ -52,6 +52,8 @@ const leaveRequestSchema = new Schema({
         default: 'pending',
         required: [true, 'Status is required.'],
     },
+    deductedCL: { type: Number, default: 0 },  // Track deducted CL
+    deductedLOP: { type: Number, default: 0 },  // Track deducted LOP
     reason: {
         type: String, // Optional string field to store the reason for taking leave
         required: [false, 'Reason is required.'], // You can set this to `true` if you want to make it mandatory

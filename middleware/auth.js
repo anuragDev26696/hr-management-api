@@ -16,8 +16,7 @@ export const authGuard = (req, res, next) => {
     next(); // Call the next middleware or route handler
   } catch (err) {
     const {name, message, expiredAt} = err;
-    // console.error("type: ", JSON.stringify(err));
-    res.status(401).json({ data: null, success: false, message: message || 'Token is not valid', error: name });
+    return res.status(401).json({ data: null, success: false, message: message || 'Token is not valid', error: name });
   }
 };
 
@@ -51,3 +50,21 @@ export function roleGuard(allowedRoles = []) {
     next();
   };
 }
+
+// Middleware to check if the user has the required permission
+export const checkPermission = (requiredPermission) => {
+  return async (req, res, next) => {
+    try {
+      const user = req.user;
+      // Check if the HR has the required permission
+      if (!user.permissions || !user.permissions.includes(requiredPermission)) {
+        return res.status(403).json({ message: `Access Denied: No ${requiredPermission} permission` });
+      }
+
+      // If permission exists, proceed to the next middleware or route handler
+      next();
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  };
+};

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clockIn, clockOut, getDayAttendance, getAttendanceForMonth, getEmployeesAttendance, markAbsenceOrManualClockOut } from '../controllers/attendance.controller.js';
+import { clockIn, clockOut, getDayAttendance, getAttendanceForMonth, getEmployeesAttendance, markAbsenceOrManualClockOut, getEmployeeLatestAttendance, attendanceSummary } from '../controllers/attendance.controller.js';
 import { adminGuard, authGuard } from '../middleware/auth.js';
 
 const attendanceRoutes = Router();
@@ -9,11 +9,14 @@ attendanceRoutes.post('/clockin', authGuard, clockIn);
 attendanceRoutes.put('/clockout', authGuard, clockOut);
 // Get attendance for a day
 attendanceRoutes.get('/day/:date', authGuard, adminGuard, getDayAttendance);
+// Get attendance for a day
+attendanceRoutes.get('/latest-clockin', authGuard, getEmployeeLatestAttendance);
 // Get attendance for a day with employee id array
 attendanceRoutes.post('/day/sorted', authGuard, adminGuard, getEmployeesAttendance);
 // Get attendance for a month
-attendanceRoutes.get('/month/:month/:year', authGuard, getAttendanceForMonth);
+attendanceRoutes.get('/month/:year/:month', authGuard, getAttendanceForMonth);
 // Mark absence or adjust clock-out time
 attendanceRoutes.put('/manual', authGuard, adminGuard, markAbsenceOrManualClockOut);
+attendanceRoutes.get("/today-summary", authGuard, attendanceSummary);
 
 export default attendanceRoutes;

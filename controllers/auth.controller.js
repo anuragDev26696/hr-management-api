@@ -40,11 +40,12 @@ import bcrypt from 'bcryptjs';
 // };
 
 const login = async (req, res) => {
+  let message = 'Login successfull';
   try {
     const { email, password } = req.body;
     // Aggregate to find the login by email and populate the 'userUUID' field
     const loginData = await Login.aggregate([
-      { $match: { email } },  // Match the user by email
+      { $match: { email, isDeleted: false, isActive: true } },  // Match the user by email
       {
         $lookup: {
           from: 'users',  // The collection you want to join with (assumes 'users' is the collection name)
@@ -60,18 +61,21 @@ const login = async (req, res) => {
 
     // Check if the user was found
     if (!loginData || loginData.length < 1) {
-      return res.status(400).json({ message: 'User not found.', data: null, success: false });
+      message = 'User not found.';
+      return res.status(400).json({ message, error: message });
     }
 
     const user = loginData[0];  // Get the first (and only) user from the result of aggregate
     if (!user.password) {
-      return res.status(400).json({ message: 'Please set password.', error: 'NO_PASSWORD', data: null, success: false });
+      message = 'Please set password.';
+      return res.status(400).json({ message, error: 'NO_PASSWORD' });
     }
 
     // Check if the password is correct
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials', data: null, success: false });
+      message = 'Invalid credentials';
+      return res.status(400).json({ message, error: message });
     }
 
     // Create JWT payload
@@ -79,7 +83,9 @@ const login = async (req, res) => {
       uuid: user.userDetails.uuid,
       email: user.email,
       role: user.role,
-      orgId: user.orgId,
+      permissions: user.userDetails.permissions ?? [],
+      orgId: user.orgId || user.userDetails.orgId,
+      name: user.userDetails ? user.userDetails.name : 'Unknown',
       createdBy: user.userDetails ? user.userDetails.createdBy : null,  // Access the populated userDetails
     };
 
@@ -87,10 +93,9 @@ const login = async (req, res) => {
     const token = JWT.sign(payload, process.env.JWT_SECRET, { expiresIn: '10h' });
 
     // Send the token in the response
-    res.status(200).json({ data: {token, payload}, message: 'Login successfull', success: true });
+    return res.status(200).json({ data: {token, payload}, message, success: true });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', data: null, success: false, error: err.message });
+    return res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
@@ -115,8 +120,7 @@ const setPassword = async (req, res) => {
     return res.status(200).json({ message: 'Password set successfully.', data, success: true, });
     // Check if the password is correct
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error', data: null, success: false, error: err.message });
+    return res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 

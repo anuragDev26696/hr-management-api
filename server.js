@@ -10,6 +10,8 @@ import leaveRoutes from './routes/leave.routes.js';
 import attendanceRoutes from './routes/attendance.routes.js';
 import holidayRoutes from './routes/holiday.routes.js';
 import regularizationRoutes from './routes/regularization.routes.js';
+import './cron-jobs.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 const app = express();
 
 config(); // configure dotenv
@@ -19,6 +21,7 @@ const port = process.env.PORT || 2110;
 app.use(bodyParser.json());
 app.use(cors());
 app.use('/api/auth', authRoute);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/user', employeeRoute);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/leaves', leaveRoutes);

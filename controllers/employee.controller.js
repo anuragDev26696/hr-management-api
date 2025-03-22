@@ -1,6 +1,8 @@
 import Employee from "../models/employee.js";
+import { LeaveBalance } from "../models/leaveBalance.js";
 import Login from "../models/login.js";
-import { v4 as uuidv4 } from "uuid"; // Use uuidv4 for generating UUIDs
+// import { v4 as uuidv4 } from "uuid"; // Use uuidv4 for generating UUIDs
+import moment from "moment";
 
 // Create new user
 export const newUser = async (req, res) => {
@@ -19,7 +21,7 @@ export const newUser = async (req, res) => {
     if(!joiningDate){
       return res.status(400).json({success: false, error: 'Joining date is required.'})
     } 
-    const isValidDate = !isNaN(Date.parse(isValidDate));
+    const isValidDate = !isNaN(Date.parse(joiningDate));
     if (!isValidDate) {
       message = 'Invalid date format.';
       return res.status(400).json({ data: null, message, success: false });
@@ -39,6 +41,21 @@ export const newUser = async (req, res) => {
       });
       const newUser = await newReq.save();
       const data = await Employee.findById(newUser._id).populate('departmentDetail').exec();
+      // Calculate the number of days remaining in the current year
+      const joiningDate = moment(data.joiningDate);
+      const currentYear = moment().year();
+      const endOfYear = moment(`${currentYear}-12-31`);
+      const daysInYear = endOfYear.diff(moment(`${currentYear}-01-01`), 'days') + 1; // +1 to include the current day
+      const remainingDays = endOfYear.diff(joiningDate, 'days');
+
+      // Calculate remaining LOP leaves based on the ratio of remaining days to total days in the year
+      const remainingLopLeavesRatio = (remainingDays / daysInYear) * 365;
+      const newLeaveBalance = new LeaveBalance({
+        employeeId: data.uuid,
+        orgId: data.orgId,
+        lastCreditDate: new Date(joiningDate),
+      });
+      await newLeaveBalance.save();
       return res.status(200).json({ data, message: "User created successfully.", success: true });
     }
   } catch (error) {
@@ -65,7 +82,8 @@ export const updateUser = async (req, res) => {
       { $set: req.body },
       { new: true, runValidators: true } // `new: true` returns the updated document
     );
-    const data = await Employee.findOne({uuid: userId}).populate('departmentDetail').exec();;
+    existingItem = await Employee.findOne({uuid: userId}).populate('departmentDetail').exec();;
+    await Login.findOneAndUpdate({userUUID: userId}, {$set: {isActive: existingItem.isActive}});
     return res.status(200).json({data: existingItem, message: "User updated successfully.", success: true});
   } catch (error) {
     return res.status(400).json({ error, message: error.message || "Something went wrong." });
@@ -88,8 +106,9 @@ export const deleteUser = async (req, res) => {
 // Get all filtered users with pagination
 export const getFilteredUsers = async (req, res) => {
   try {
-    const user = req.user;
-    const { skip = 0, limit = 20, role = "", search_string = "", isActive = true, } = req.body;
+    const loginId = req.user.uuid;
+    const loginRole = req.user.role;
+    const { skip = 0, limit = 20, role = "", search_string = "", isActive = null, } = req.body;
     // Initialize the query filter
     let query = {};
     // Extract the primary language from the 'accept-language' header
@@ -103,6 +122,12 @@ export const getFilteredUsers = async (req, res) => {
 
     // If a search string is provided, search in the name field (case-insensitive)
     query.name = { $regex: search_string, $options: "i" }; // Case-insensitive search in the name field
+    if (isActive != null && loginRole === 'admin') {
+      query.isActive = isActive;
+    }else {
+      query.isActive = true;
+    }
+    console.log(loginRole, query);
 
     // MongoDB query with pagination and population of departmentDetail
     const docs = await Employee.find(query)
@@ -132,13 +157,28 @@ export const getFilteredUsers = async (req, res) => {
 
 export const getAll = async (req, res) => {
   try {
-    const {orgId} = req.user;
-    const { skip = 0, limit = 20 } = req.query;
+    const {orgId, role} = req.user;
+    let { skip = 0, limit = 20, isActive=null } = req.query;
     const acceptLanguage = req.headers?.['accept-language'] || 'en-US';
     const locale = acceptLanguage.split(',')[0];
+    let query = {orgId}
+    // Correctly handle the isActive parameter
+    if (role === 'admin') {
+      if (isActive === 'true') { // Check for the string "true"
+        isActive = true;
+      } else if (isActive === 'false') { // Check for the string "false"
+        isActive = false;
+      } else if (isActive === 'null' || isActive === undefined) { // Check for "null" or undefined
+        isActive = null;  // Explicitly set to null
+      }
+      if(isActive != null)
+        query = { orgId, isActive: isActive }; // Use the correctly typed isActive
+    } else {
+      query = { orgId, isActive: true }; // Enforce isActive: true for non-admins
+    }
 
     // MongoDB query with pagination and population of departmentDetail
-    const docs = await Employee.find({orgId})
+    const docs = await Employee.find(query)
       .skip(parseInt(skip) * parseInt(limit)) // Skip logic for pagination
       .limit(parseInt(limit)) // Limit the number of results
       .sort({createdAt: -1}) // Sort data
@@ -156,7 +196,7 @@ export const getAll = async (req, res) => {
     });
 
     // Get the total count of filtered documents
-    const total = await Employee.countDocuments({orgId});
+    const total = await Employee.countDocuments(query);
     return res.status(200).json({message: "Users retrieved successfully.", success: true, data: { docs: formattedDocs, total }});
   } catch (error) {
     return res.status(500).json({message: "Server error.", success: false, data: null, error: error.message});

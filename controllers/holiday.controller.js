@@ -42,9 +42,27 @@ const deleteHolidays = async (req, res) => {
   try {
     const orgId = req.user.orgId;
     const holiday = await Holiday.findOneAndDelete({uuid: req.params.uuid, orgId});
-    res.status(200).json({data: holiday, success: holiday != null, message: holiday ? 'Event deleted successfully.' : 'Event not found.'});
+    return res.status(200).json({data: holiday, success: holiday != null, message: holiday ? 'Event deleted successfully.' : 'Event not found.'});
   } catch (error) {
-    res.status(500).json({error: error.message, message: 'Error fetching holiday' });
+    return res.status(500).json({error: error.message, message: 'Error fetching holiday' });
+  }
+};
+
+// Delete holiday
+const updateHoliday = async (req, res) => {
+  try {
+    let message = "Event updated successfully.";
+    const orgId = req.user.orgId;
+    let holiday = await Holiday.findOne({uuid: req.params.uuid, orgId});
+    if(!holiday){
+      message = "Holiday not found.";
+      return res.status(404).json({error: message, message});
+    }
+    await Holiday.findOneAndUpdate({uuid: req.params.uuid, orgId}, { $set: req.body}),
+    holiday = await Holiday.findOne({uuid: req.params.uuid, orgId});
+    return res.status(200).json({data: holiday, success: true, message});
+  } catch (error) {
+    return res.status(500).json({error: error.message, message: 'Error fetching holiday' });
   }
 };
 
@@ -108,12 +126,10 @@ const getHolidaysByYear = async (req, res) => {
     // Create a date range for the entire year
     const startOfYear = moment(`${parsedYear}-01-01`, 'YYYY-MM-DD').startOf('year').toDate();
     const endOfYear = moment(startOfYear).endOf('year').toDate();
-
+    const reqQuery = {date: { $gte: startOfYear, $lte: endOfYear },
+    orgId};
     // Fetch holidays for the given year
-    const holidays = await Holiday.find({
-      date: { $gte: startOfYear, $lte: endOfYear },
-      orgId
-    });
+    const holidays = await Holiday.find(reqQuery);
 
     res.status(200).json({ data: holidays, success: true, message: 'Holidays retrieved successfully.' });
   } catch (error) {
@@ -121,4 +137,4 @@ const getHolidaysByYear = async (req, res) => {
   }
 };
 
-export { addHoliday, deleteHolidays, getHolidaysByMonth, getHolidaysByYear };
+export { addHoliday, deleteHolidays, getHolidaysByMonth, getHolidaysByYear, updateHoliday };
