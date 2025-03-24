@@ -68,7 +68,6 @@ export const applyLeave =  async (req, res) => {
             leaveDays,
             deductedCL, deductedLOP
         });
-        console.log(leaveRequest.toJSON());
 
         // Save leave request
         await leaveRequest.save();

@@ -21,6 +21,11 @@ const clockIn = async (req, res) => {
     if(exstingData){
       return res.status(400).json({data: exstingData, error: 'Already clocked In.', message: 'Already clocked In.'});
     }
+    const userData = await Employee.findOne({uuid: employeeId, orgId, isActive: true}, "joiningDate");
+    if(moment(userData.joiningDate).isAfter(moment(clockInTime), 'date')){
+      const msg = "You can't mark clockin before joining date.";
+      return res.status(400).json({error: msg, message: msg});
+    }
     const newAttendance = new Attendance({employeeId, orgId, date: startDayTime, clockInTime, createdBy: employeeId});
     await newAttendance.save();
     const formattedClockInTime = moment(clockInTime).format('hh:mm a');

@@ -35,6 +35,7 @@ const employeeSchema = new mongoose.Schema(
       default: [],
     },
     gender: { type: String, enum: ["Male", "Female"] },
+    dateOfBirth: { type: Date, default: null },
     department: {
       type: String,
       ref: "department", // Reference to Department collection
