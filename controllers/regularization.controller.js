@@ -253,6 +253,5 @@ function dateQuery(year, month, title=null) {
   let endDate = new Date(year, month + 1, 0);
   endDate.setHours(23, 59, 59, 999); // Ensure time is at the end of the day
  
- console.log(year, month, startDate, endDate, title);
  return { $gte: startDate, $lte: endDate };
 }

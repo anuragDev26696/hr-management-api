@@ -3,12 +3,13 @@ import { LeaveBalance } from "../models/leaveBalance.js";
 import Login from "../models/login.js";
 // import { v4 as uuidv4 } from "uuid"; // Use uuidv4 for generating UUIDs
 import moment from "moment";
+import { newLogActivity } from "./activity.controller.js";
 
 // Create new user
 export const newUser = async (req, res) => {
   try {
     const { email, joiningDate } = req.body;
-    const { orgId } = req.user;
+    const { orgId, uuid, name, role } = req.user;
     // Find the user by email
     const user = await Login.findOne({ email, isDeleted: false });
     const employee = await Employee.findOne({ email, orgId, isDeleted: false });
@@ -42,11 +43,10 @@ export const newUser = async (req, res) => {
       const newUser = await newReq.save();
       const data = await Employee.findById(newUser._id).populate('departmentDetail').exec();
       // Calculate the number of days remaining in the current year
-      const joiningDate = moment(data.joiningDate);
       const currentYear = moment().year();
       const endOfYear = moment(`${currentYear}-12-31`);
       const daysInYear = endOfYear.diff(moment(`${currentYear}-01-01`), 'days') + 1; // +1 to include the current day
-      const remainingDays = endOfYear.diff(joiningDate, 'days');
+      const remainingDays = endOfYear.diff(moment(joiningDate), 'days');
 
       // Calculate remaining LOP leaves based on the ratio of remaining days to total days in the year
       const remainingLopLeavesRatio = (remainingDays / daysInYear) * 365;
@@ -56,6 +56,7 @@ export const newUser = async (req, res) => {
         lastCreditDate: new Date(joiningDate),
       });
       await newLeaveBalance.save();
+      await newLogActivity(uuid, role, name, "Employee", "Add Employee", orgId, `${name} added new employee.`);
       return res.status(200).json({ data, message: "User created successfully.", success: true });
     }
   } catch (error) {
@@ -65,10 +66,11 @@ export const newUser = async (req, res) => {
 
 // Update user
 export const updateUser = async (req, res) => {
-  const { userId } = req.params; // Extract employee uuid (id) from URL
-  const {workingDays} = req.body;
   let message = "";
   try {
+    const { userId } = req.params; // Extract employee uuid (id) from URL
+    const {workingDays} = req.body;
+    const {uuid, orgId, name, role} = req.user;
     // Find the employee to update
     let existingItem = await Employee.findOne({ uuid: userId }).populate('departmentDetail').exec();
     if (!existingItem) {
@@ -84,6 +86,8 @@ export const updateUser = async (req, res) => {
     );
     existingItem = await Employee.findOne({uuid: userId}).populate('departmentDetail').exec();;
     await Login.findOneAndUpdate({userUUID: userId}, {$set: {isActive: existingItem.isActive}});
+    const logMessage = uuid == userId ? `${name} updated own profile.` : `${name} updated ${existingItem.name}\'s profile.`;
+    await newLogActivity(uuid, role, name, "Employee", "Update "+uuid == userId ? "Profile" : "Employee profile", orgId, logMessage);
     return res.status(200).json({data: existingItem, message: "User updated successfully.", success: true});
   } catch (error) {
     return res.status(400).json({ error, message: error.message || "Something went wrong." });
@@ -94,9 +98,11 @@ export const updateUser = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { orgId } = req.user;
+    const { orgId, name, uuid, role } = req.user;
+    const empName = await Employee.findOne({ uuid: userId, orgId }, "name");
     await Employee.findOneAndDelete({ uuid: userId, orgId }).exec();
     await Login.findOneAndDelete({ userUUID: userId, orgId }).exec();
+    await newLogActivity(uuid, role, name, "Employee", "Drop Employee", orgId, `${name} droped ${empName}`);
     return res.status(200).json({ message: "User deleted successfully.", success: true, data: {} });
   } catch (error) {
     return res.status(400).json({ error, message: error.message || "Something went wrong." });
@@ -127,7 +133,7 @@ export const getFilteredUsers = async (req, res) => {
     }else {
       query.isActive = true;
     }
-    console.log(loginRole, query);
+     
 
     // MongoDB query with pagination and population of departmentDetail
     const docs = await Employee.find(query)

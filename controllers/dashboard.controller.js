@@ -3,6 +3,8 @@ import { Attendance } from "../models/attendance.js";
 import Employee from "../models/employee.js";
 import Department from "../models/department.js";
 import LeaveRequest from "../models/leave.js";
+import { LeaveBalance } from "../models/leaveBalance.js";
+import { Holiday } from "../models/holiday.js";
 
 // API to get master records
 export const fetchMasterRecords = async (req, res) => {
@@ -75,4 +77,51 @@ export const attendanceSummary = async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: "Internal Server Error" });
   }
+};
+// API to get employee's today's attendance status
+export const employeeAttendanceStatus = async (req, res) => {
+  try {
+    const {name, uuid, role, orgId} = req.user;
+    const today = moment().startOf("day").toDate();
+    const monthStart = moment().startOf("month").toDate();
+    const monthEnd = moment().endOf("month").toDate();
+    const [attendanceDocs, monthTotalPresent, leaveRequest, leaveBalanceDoc] = await Promise.all([
+      Attendance.findOne(
+        { date: { $gte: today }, orgId: orgId, employeeId: uuid },
+        "clockOutTime clockInTime totalHours"
+      ),
+      Attendance.distinct("date", { date: { $gte: monthStart, $lte: monthEnd }, orgId: orgId, employeeId: uuid }),
+      LeaveRequest.countDocuments({ orgId: orgId, employeeId: uuid, status: 'pending' }),
+      LeaveBalance.findOne({employeeId: uuid}, "remainingCL appliedCL appliedLOP")
+    ]);
+    const data = {
+      todayAttendance: attendanceDocs,
+      monthAttendance: monthTotalPresent.length,
+      leaveRequest,
+      leaveBalanceDoc
+    };
+    return res
+      .status(200)
+      .json({ data, message: "Data retrived.", success: true });
+  } catch (error) {
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+export const upcomingEvents = async (req, res) => {
+    let message = "Data found";
+    try {
+      const { orgId, role, name } = req.user;
+      const today = moment().startOf("day").toDate();
+      const todayEnd = moment().endOf("day").toDate();
+      const [holidays, birthdays] = await Promise.all([
+        Holiday.findOne({orgId, date: {$gte: today}}, "name date holidayType").sort({date: 1}),
+        Employee.find({orgId, isActive: true, dateOfBirth: {$gte: today, $lte: todayEnd}}, "dateOfBirth name")
+      ]);
+  
+      return res.status(200).json({ data: {holidays, birthdays}, success: true, message });
+    } catch (error) {
+      message = "Error fetching activity logs"
+      return res.status(500).json({ error: error.message ?? error, message });
+    }
 };
