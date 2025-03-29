@@ -31,11 +31,15 @@ const employeeSchema = new mongoose.Schema(
     },
     permissions: {
       type: [String],
-      enum: ["payroll", "employee", "leave", "attendance", "holiday"],
+      enum: ["payroll", "employee", "leave", "attendance", "holiday", "department"],
       default: [],
     },
     gender: { type: String, enum: ["Male", "Female"] },
+    bloodGroup: { type: String, default: "", match: [/^(A|B|AB|O)[+-]$/, "Please enter a valid blood group (e.g., A+, O-, AB+)."], },
     dateOfBirth: { type: Date, default: null },
+    personalEmail: { type: String, default: "" },
+    maritalStatus:{ type: String, default: "" },
+    employeeId: { type: String, default: "", match: [/^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$/, "Please enter a valid Employee Id."], },
     department: {
       type: String,
       ref: "department", // Reference to Department collection
