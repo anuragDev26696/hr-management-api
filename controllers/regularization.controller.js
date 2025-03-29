@@ -2,14 +2,15 @@ import moment from "moment/moment.js";
 import { Attendance } from "../models/attendance.js";
 import Employee from "../models/employee.js";
 import { Regularization } from "../models/regularization.js";
+import { newLogActivity } from "./activity.controller.js";
 
 // Create a regularization request
 export const createRegularizationRequest = async (req, res) => {
-  const { attendanceDate, clockInTime, clockOutTime, reason } = req.body;
-  const { uuid, orgId } = req.user;
   let message = "";
-
+  
   try {
+    const { attendanceDate, clockInTime, clockOutTime, reason } = req.body;
+    const { uuid, orgId, role, name } = req.user;
     const isValidDate = !isNaN(Date.parse(attendanceDate)); // Basic date check
     if (!isValidDate) {
       message = 'Invalid date format.';
@@ -69,6 +70,10 @@ export const createRegularizationRequest = async (req, res) => {
     });
 
     await regularizationRequest.save();
+    const monthMonth = moment.months()[moment(attendanceDate).get('month')];
+    const attDate = moment(attendance).get('date');
+    const logMessage = `${name} created new regularization request for ${attDate} ${monthMonth}`;
+    await newLogActivity(uuid, role, name, "Attendance", "Request created for regularization", orgId, logMessage);
     message = "Regularization requested successfully.";
     return res.status(201).json({data: regularizationRequest, success: true, message});
   } catch (error) {

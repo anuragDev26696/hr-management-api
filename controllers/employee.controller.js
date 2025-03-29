@@ -41,7 +41,7 @@ export const newUser = async (req, res) => {
         ],
       });
       const newUser = await newReq.save();
-      const data = await Employee.findById(newUser._id).populate('departmentDetail').exec();
+      const employeeDoc = await Employee.findById(newUser._id).populate({ path: 'departmentDetail' }).lean();
       // Calculate the number of days remaining in the current year
       const currentYear = moment().year();
       const endOfYear = moment(`${currentYear}-12-31`);
@@ -51,13 +51,13 @@ export const newUser = async (req, res) => {
       // Calculate remaining LOP leaves based on the ratio of remaining days to total days in the year
       const remainingLopLeavesRatio = (remainingDays / daysInYear) * 365;
       const newLeaveBalance = new LeaveBalance({
-        employeeId: data.uuid,
-        orgId: data.orgId,
+        employeeId: employeeDoc.uuid,
+        orgId: employeeDoc.orgId,
         lastCreditDate: new Date(joiningDate),
       });
       await newLeaveBalance.save();
       await newLogActivity(uuid, role, name, "Employee", "Add Employee", orgId, `${name} added new employee.`);
-      return res.status(200).json({ data, message: "User created successfully.", success: true });
+      return res.status(200).json({ data: employeeDoc, message: "User created successfully.", success: true });
     }
   } catch (error) {
     return res.status(400).json({ error, message: error.message || "Something went wrong." });
@@ -72,7 +72,7 @@ export const updateUser = async (req, res) => {
     const {workingDays} = req.body;
     const {uuid, orgId, name, role} = req.user;
     // Find the employee to update
-    let existingItem = await Employee.findOne({ uuid: userId }).populate('departmentDetail').exec();
+    let existingItem = await Employee.findOne({ uuid: userId });
     if (!existingItem) {
       message = "User not found.";
       return res.status(404).json({ error: message, message: message, success: false });
@@ -84,10 +84,10 @@ export const updateUser = async (req, res) => {
       { $set: req.body },
       { new: true, runValidators: true } // `new: true` returns the updated document
     );
-    existingItem = await Employee.findOne({uuid: userId}).populate('departmentDetail').exec();;
     await Login.findOneAndUpdate({userUUID: userId}, {$set: {isActive: existingItem.isActive}});
     const logMessage = uuid == userId ? `${name} updated own profile.` : `${name} updated ${existingItem.name}\'s profile.`;
-    await newLogActivity(uuid, role, name, "Employee", "Update "+uuid == userId ? "Profile" : "Employee profile", orgId, logMessage);
+    await newLogActivity(uuid, role, name, "Employee", "Update "+(uuid == userId ? "Profile" : "Employee profile"), orgId, logMessage);
+    existingItem = await Employee.findOne({ uuid: userId }).populate({ path: 'departmentDetail' }).lean();
     return res.status(200).json({data: existingItem, message: "User updated successfully.", success: true});
   } catch (error) {
     return res.status(400).json({ error, message: error.message || "Something went wrong." });
@@ -139,12 +139,12 @@ export const getFilteredUsers = async (req, res) => {
     const docs = await Employee.find(query)
     .skip(parseInt(skip) * parseInt(limit)) // Skip logic for pagination
     .limit(parseInt(limit)) // Limit the number of results
-    .populate('departmentDetail') // Populate the departmentDetail field
-    .exec();
+    .populate({ path: 'departmentDetail' }) // Populate the departmentDetail field
+    .lean();
 
     // Format the date for each employee
     const formattedDocs = docs.map((item) => {
-      const formattedEmployee = item.toObject();
+      const formattedEmployee = item;
       // Format the joiningDate based on the provided locale
       if (formattedEmployee.joiningDate) {
         formattedEmployee.formattedJoinDate = new Date(formattedEmployee.joiningDate).toLocaleDateString(locale, {year: "numeric", month: "long", day: "numeric"});
@@ -188,12 +188,12 @@ export const getAll = async (req, res) => {
       .skip(parseInt(skip) * parseInt(limit)) // Skip logic for pagination
       .limit(parseInt(limit)) // Limit the number of results
       .sort({createdAt: -1}) // Sort data
-      .populate('departmentDetail') // Populate the departmentDetail field
-      .exec();
+      .populate({ path: 'departmentDetail' }) // Populate the departmentDetail field
+      .lean();
 
     // Format the date for each employee
     const formattedDocs = docs.map((item) => {
-      const formattedEmployee = item.toObject();
+      const formattedEmployee = item;
       // Format the joiningDate based on the provided locale
       if (formattedEmployee.joiningDate) {
         formattedEmployee.formattedJoinDate = new Date(formattedEmployee.joiningDate).toLocaleDateString(locale, {year: "numeric", month: "long", day: "numeric"});
@@ -216,8 +216,8 @@ export const getUser = async (req, res) => {
     const { orgId } = req.user; // Assuming the user ID is passed as a parameter
     // Fetch the user with the provided ID and populate departmentDetail
     const employee = await Employee.findOne({ uuid: userId, orgId })
-      .populate('departmentDetail') // Populate the departmentDetail
-      .exec();
+      .populate({ path: 'departmentDetail' }) // Populate the departmentDetail
+      .lean();
 
     // If employee not found
     if (!employee) {
@@ -227,7 +227,7 @@ export const getUser = async (req, res) => {
     const locale = acceptLanguage.split(',')[0];
 
     // Format the joiningDate
-    const formattedEmployee = employee.toObject(); // Convert to plain JavaScript object
+    const formattedEmployee = employee; // Convert to plain JavaScript object
     // Format the joiningDate based on the locale
     if (formattedEmployee.joiningDate) {
       formattedEmployee.formattedJoinDate = new Date(formattedEmployee.joiningDate).toLocaleDateString(locale, {year: "numeric", month: "long", day: "numeric",});

@@ -109,19 +109,27 @@ export const employeeAttendanceStatus = async (req, res) => {
 };
 
 export const upcomingEvents = async (req, res) => {
-    let message = "Data found";
-    try {
-      const { orgId, role, name } = req.user;
-      const today = moment().startOf("day").toDate();
-      const todayEnd = moment().endOf("day").toDate();
-      const [holidays, birthdays] = await Promise.all([
-        Holiday.findOne({orgId, date: {$gte: today}}, "name date holidayType").sort({date: 1}),
-        Employee.find({orgId, isActive: true, dateOfBirth: {$gte: today, $lte: todayEnd}}, "dateOfBirth name")
-      ]);
-  
-      return res.status(200).json({ data: {holidays, birthdays}, success: true, message });
-    } catch (error) {
-      message = "Error fetching activity logs"
-      return res.status(500).json({ error: error.message ?? error, message });
-    }
+  let message = "Data found";
+  try {
+    const { orgId, role, name } = req.user;
+    const today = moment().startOf("day").toDate();
+    const todayMonthDay = moment().format("MM-DD");
+    const birthExp =  {
+      $expr: {
+        $eq: [
+          { $dateToString: { format: "%m-%d", date: "$dateOfBirth" } }, // Extract MM-DD
+          todayMonthDay
+        ]
+      }
+    };
+    const [holidays, birthdays] = await Promise.all([
+      Holiday.findOne({orgId, date: {$gte: today}}, "name date holidayType").sort({date: 1}),
+      Employee.find({orgId, isActive: true, ...birthExp}, "dateOfBirth name")
+    ]);
+
+    return res.status(200).json({ data: {holidays, birthdays}, success: true, message });
+  } catch (error) {
+    message = "Error fetching activity logs"
+    return res.status(500).json({ error: error.message ?? error, message });
+  }
 };
