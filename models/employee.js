@@ -86,10 +86,10 @@ const employeeSchema = new mongoose.Schema(
         }, // List of working days during this period
       },
     ],
+    facebookUrl: {type: String, default: '', match: [/^(https?:\/\/)(www\.)?[\w\-]+(\.[\w\-]+)+([\/?#][^\s]*)?$/, 'Invalid Facebook url. Url should be start with http or https.']},
+    linkedinUrl: {type: String, default: '', match: [/^(https?:\/\/)(www\.)?[\w\-]+(\.[\w\-]+)+([\/?#][^\s]*)?$/, 'Invalid linkedin url. Url should be start with http or https.']},
+    githubUrl: {type: String, default: '', match: [/^(https?:\/\/)(www\.)?[\w\-]+(\.[\w\-]+)+([\/?#][^\s]*)?$/, 'Invalid github url. Url should be start with http or https.']},
   },
-  {
-    timestamps: true, // Add createdAt and updatedAt timestamps
-  }
 );
 
 // Inherit the base schema
