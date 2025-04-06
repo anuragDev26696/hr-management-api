@@ -84,9 +84,9 @@ export const createRegularizationRequest = async (req, res) => {
 export const requestList = async (req, res) => {
   try {
     const { skip=0, limit=20 } = req.query;
-    const { uuid, role, orgId } = req.user;
+    const { uuid, role, orgId, permissions=[] } = req.user;
     let query = {orgId};
-    if(role !== 'admin') query = {createdBy: uuid, orgId};
+    if(!permissions.includes('attendance')) query = {createdBy: uuid, orgId};
     // Fetch the regularization request and populate the employee details
     let request = await Regularization.aggregate(aggregation(skip, limit, query));
     const totalCount = await Regularization.countDocuments(query);

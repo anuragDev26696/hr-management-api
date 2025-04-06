@@ -133,7 +133,6 @@ export const getFilteredUsers = async (req, res) => {
     }else {
       query.isActive = true;
     }
-     
 
     // MongoDB query with pagination and population of departmentDetail
     const docs = await Employee.find(query)
@@ -164,10 +163,17 @@ export const getFilteredUsers = async (req, res) => {
 export const getAll = async (req, res) => {
   try {
     const {orgId, role} = req.user;
-    let { skip = 0, limit = 20, isActive=null } = req.query;
+    let { skip = 0, limit = 20, isActive=null, search_string="" } = req.query;
     const acceptLanguage = req.headers?.['accept-language'] || 'en-US';
     const locale = acceptLanguage.split(',')[0];
-    let query = {orgId}
+    let query = {orgId, 
+      $or: [
+        {name: { $regex: search_string, $options: "i" }},
+        {email: { $regex: search_string, $options: "i" }},
+        {designation: { $regex: search_string, $options: "i" }},
+        {position: { $regex: search_string, $options: "i" }}
+      ],
+    }
     // Correctly handle the isActive parameter
     if (role === 'admin') {
       if (isActive === 'true') { // Check for the string "true"
