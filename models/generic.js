@@ -19,7 +19,7 @@ genericSchema.pre('save', function(next) {
     this.uuid = uuidv4();
   }
   // Ensure createdBy is not null before saving
-  if (!this.createdBy) {
+  if (!this.createdBy || this.createdBy.trim() === "" || this.createdBy === undefined || this.createdBy == null) {
     this.createdBy = this.uuid;  // Or use another value for createdBy
   }
   next();
