@@ -31,6 +31,7 @@ export const newUser = async (req, res) => {
       const newReq = new Employee({
         ...req.body,
         orgId,
+        createdBy: uuid,
         workingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], // 6 days
         workingDaysHistory: [
           {

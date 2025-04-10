@@ -3,8 +3,15 @@ import { ActivityLog } from "../models/activity-logs.js";
 
 export const newLogActivity = async (userId, role, userName, module, action, orgId, details) => {
   try {
-    const newActivity = new ActivityLog({action, details,module, orgId, role, createdBy: userId, userName});
-    await newActivity.save();
+    let activity = await ActivityLog.findOne({action, createdBy: userId, orgId,});
+    console.log(activity);
+    if(activity !== null){
+      activity.details = details;
+      if(!activity.userName) activity.userName = userName;
+    } else {
+      activity = new ActivityLog({action, details,module, orgId, role, createdBy: userId, userName});
+    }
+    await activity.save();
   } catch (error) {
     console.error("Error logging activity:", error);
   }
@@ -37,11 +44,28 @@ export const getActivityLogs = async (req, res) => {
             message = 'Invalid date format.';
             return res.status(400).json({ error: message, message });
         }
-        filter.createdAt = {$gte: today, $lte: new Date(endDate) };
+        const end = new Date(endDate);
+        // Modify filter to match if either createdAt or updatedAt falls within the range
+        filter.$or = [
+          { createdAt: { $gte: today, $lte: end } },
+          { updatedAt: { $gte: today, $lte: end } }
+        ];
       }
       
       // Fetch activity logs with pagination
-      const docs = await ActivityLog.find(filter).sort({ createdAt: -1 }).skip(parseInt(skip, 10) || 0).limit(parseInt(limit, 10) || 10);
+      const docs = await ActivityLog.aggregate([
+        { $match: filter },
+        {
+          $addFields: {
+            sortDate: {
+              $ifNull: ["$updatedAt", "$createdAt"]
+            }
+          }
+        },
+        { $sort: { sortDate: -1 }},
+        { $skip: parseInt(skip, 10) || 0 },
+        { $limit: parseInt(limit, 10) || 10}
+      ]);
       const totalCount = await ActivityLog.countDocuments(filter);
       return res.status(200).json({ data: {docs, totalCount}, success: true, message });
     } catch (error) {
