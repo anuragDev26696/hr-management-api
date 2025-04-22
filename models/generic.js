@@ -8,7 +8,7 @@ const genericSchema = new Schema(
   {
     isDeleted: { type: Boolean, default: false },
     createdBy: { type: String, default: null },
-    uuid: { type: String, unique: true, default: null },
+    uuid: { type: String, unique: true, default: () => uuidv4() },
   },
   { timestamps: true } // This will automatically add createdAt and updatedAt fields
 );

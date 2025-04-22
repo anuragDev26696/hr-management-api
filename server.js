@@ -12,6 +12,8 @@ import holidayRoutes from './routes/holiday.routes.js';
 import regularizationRoutes from './routes/regularization.routes.js';
 import './cron-jobs.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
+import projectRoutes from './routes/project.routes.js';
+import timesheetRoutes from './routes/timesheet.routes.js';
 const app = express();
 
 config(); // configure dotenv
@@ -28,6 +30,8 @@ app.use('/api/leaves', leaveRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/holidays', holidayRoutes);
 app.use('/api/regularization', regularizationRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/timesheet', timesheetRoutes);
   
 app.listen(port, () => {
     console.info(`Server running on ${port}.`);

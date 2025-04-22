@@ -4,14 +4,15 @@ import { ActivityLog } from "../models/activity-logs.js";
 export const newLogActivity = async (userId, role, userName, module, action, orgId, details) => {
   try {
     let activity = await ActivityLog.findOne({action, createdBy: userId, orgId,});
-    console.log(activity);
     if(activity !== null){
       activity.details = details;
       if(!activity.userName) activity.userName = userName;
+      activity.markModified('details');
+      activity.updatedAt = new Date();
     } else {
       activity = new ActivityLog({action, details,module, orgId, role, createdBy: userId, userName});
     }
-    await activity.save();
+    await activity.save({new: true});
   } catch (error) {
     console.error("Error logging activity:", error);
   }
@@ -44,7 +45,7 @@ export const getActivityLogs = async (req, res) => {
             message = 'Invalid date format.';
             return res.status(400).json({ error: message, message });
         }
-        const end = new Date(endDate);
+        const end = moment(endDate).endOf('day').toDate();
         // Modify filter to match if either createdAt or updatedAt falls within the range
         filter.$or = [
           { createdAt: { $gte: today, $lte: end } },
@@ -53,19 +54,20 @@ export const getActivityLogs = async (req, res) => {
       }
       
       // Fetch activity logs with pagination
-      const docs = await ActivityLog.aggregate([
-        { $match: filter },
-        {
-          $addFields: {
-            sortDate: {
-              $ifNull: ["$updatedAt", "$createdAt"]
-            }
-          }
-        },
-        { $sort: { sortDate: -1 }},
-        { $skip: parseInt(skip, 10) || 0 },
-        { $limit: parseInt(limit, 10) || 10}
-      ]);
+      const docs = await ActivityLog.find(filter).sort({updatedAt: -1}).skip(parseInt(skip, 10) || 0).limit(parseInt(limit, 10) || 10);
+      // const docs = await ActivityLog.aggregate([
+      //   { $match: filter },
+      //   {
+      //     $addFields: {
+      //       sortDate: {
+      //         $ifNull: ["$updatedAt", "$createdAt"]
+      //       }
+      //     }
+      //   },
+      //   { $sort: { sortDate: -1 }},
+      //   { $skip: parseInt(skip, 10) || 0 },
+      //   { $limit: parseInt(limit, 10) || 10}
+      // ]);
       const totalCount = await ActivityLog.countDocuments(filter);
       return res.status(200).json({ data: {docs, totalCount}, success: true, message });
     } catch (error) {

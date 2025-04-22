@@ -185,9 +185,9 @@ export const getAll = async (req, res) => {
         isActive = null;  // Explicitly set to null
       }
       if(isActive != null)
-        query = { orgId, isActive: isActive }; // Use the correctly typed isActive
+        query = {...query, orgId, isActive: isActive }; // Use the correctly typed isActive
     } else {
-      query = { orgId, isActive: true }; // Enforce isActive: true for non-admins
+      query = {...query, orgId, isActive: true }; // Enforce isActive: true for non-admins
     }
 
     // MongoDB query with pagination and population of departmentDetail
