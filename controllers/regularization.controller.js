@@ -241,11 +241,11 @@ function aggregation(skip, limit, query={}) {
         // ... other fields from users
       },
     },
-    { $skip: parseInt(skip) * parseInt(limit) },
-    { $limit: parseInt(limit) },
     {
       $sort: { createdAt: -1 },
     },
+    { $skip: parseInt(skip) * parseInt(limit) },
+    { $limit: parseInt(limit) },
   ]
 }
 

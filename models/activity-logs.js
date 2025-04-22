@@ -26,7 +26,7 @@ export const activityLogSchema = new Schema({
   },
   module: {
     type: String,
-    enum: ["Employee", "Attendance", "Leave", "Payroll", "Role"],
+    enum: ["Employee", "Attendance", "Leave", "Payroll", "Role", "Project", "Timesheet"],
     required: [true, "Module is required."],
   },
   details: {

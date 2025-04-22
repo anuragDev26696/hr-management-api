@@ -474,15 +474,13 @@ function generateLeaveAggregationQuery( orgId, employeeId="", leaveYear, leaveMo
                     { $count: "count" }
                 ],
                 data: [
+                    // Stage 8: Sorting by createdAt (Descending)
+                    { $sort: { createdAt: -1 } },
                     // Skip and Limit for pagination
                     { $skip: Number(skip || 0) },
                     { $limit: Number(limit || 20) },
                 ],
             },
-        },
-        // Stage 8: Sorting by createdAt (Descending)
-        {
-            $sort: { createdAt: -1 },
         },
     ];
 

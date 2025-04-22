@@ -31,7 +31,7 @@ const employeeSchema = new mongoose.Schema(
     },
     permissions: {
       type: [String],
-      enum: ["payroll", "employee", "leave", "attendance", "holiday", "department"],
+      enum: ["payroll", "employee", "leave", "attendance", "holiday", "department", "project"],
       default: [],
     },
     gender: { type: String, enum: ["Male", "Female"] },
