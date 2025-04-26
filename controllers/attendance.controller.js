@@ -2,6 +2,8 @@ import { Attendance } from "../models/attendance.js";
 import Employee from "../models/employee.js";
 import moment from "moment-timezone";
 import { newLogActivity } from "./activity.controller.js";
+import LeaveRequest from "../models/leave.js"
+import os from 'os';
 
 // Clock-in an employee
 const clockIn = async (req, res) => {
@@ -377,5 +379,151 @@ function attendAggregationQuery( query, skip, limit ) {
   ];
   return pipeline;
 }
+
+export const getAttendanceChartData = async (req, res) => {
+  try {
+    const { year, month, employeeId } = req.query;
+    const {uuid, orgId} = req.user;
+    const match = {orgId, employeeId: uuid};
+    let leaveQuery = {orgId, employeeId: uuid};
+    if (employeeId) match.employeeId = employeeId;
+
+    const user = await Employee.findOne({ orgId, uuid: employeeId || uuid });
+    if (!user || !user.workingDays || user.workingDays.length === 0) {
+      return res.status(400).json({ success: false, message: 'Working days not configured for user.' });
+    }
+
+    if (!year || !month) {
+      return res.status(400).json({ success: false, message: 'year and month are required' });
+    }
+    const start = moment(`${year}-${pad(month)}-01`).startOf('month').toDate();
+    const end = moment(start).endOf('month');
+    // Prevent future dates
+    const actualEndDate = moment.min(end, moment().endOf('day')).toDate();
+    // leaveQuery = {...leaveQuery, "leaveDays.date": { $gte: start, $lte: end } };
+    match.date = { $gte: start, $lte: actualEndDate };
+    // Get timezone
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; 
+
+    // Step 1: Get attendance logs
+    const attendanceData = await Attendance.aggregate([
+      { $match: match },
+      // Group by employeeId and day to avoid duplicate entries
+      {
+        $group: {
+          _id: {
+            employeeId: '$employeeId',
+            dateOnly: {
+              $dateToString: { format: '%Y-%m-%d', date: '$date', timezone },
+            },
+          },
+          workingTime: { $first: '$totalHours' },
+          status: { $first: '$status' },
+          date: { $first: '$date' },
+        }, 
+      },
+    ]);
+
+    // Step 2: Get leave counts from leave requests
+    const leaveData = await LeaveRequest.aggregate([
+      { $match: leaveQuery },
+      { $unwind: "$leaveDays" },
+      { $match: { "leaveDays.date": { $gte: start, $lte: actualEndDate } } },
+      {
+        $set: {
+          leaveDate: "$leaveDays.date",
+          leaveType: "$leaveDays.leaveType",
+        }
+      },
+      {
+        $set: {
+          year: { $year: { date: "$leaveDate", timezone } },
+          month: { $month: { date: "$leaveDate", timezone } },
+          day: { $dayOfMonth: { date: "$leaveDate", timezone } },
+          dateStr: { $dateToString: { format: '%Y-%m-%d', date: "$leaveDate", timezone } },
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: "$year",
+            month: "$month",
+            day: "$day",
+            dateStr: "$dateStr",
+          },
+          leaveCount: {
+            $sum: {
+              $cond: [{ $eq: ["$leaveType", "half_day"] }, 0.5, 1],
+            },
+          }
+        }
+      }
+    ]);
+
+    const attendanceMap = new Map();
+    attendanceData.forEach(entry => {
+      attendanceMap.set(entry._id.dateOnly, entry.status);
+    });
+    
+    const leaveMap = new Map();
+    leaveData.forEach(leave => {
+      const leaveDate = leave._id.dateStr;
+      const dayName = moment(leaveDate).format('dddd');
+      if(moment(leaveDate).isBetween(start, actualEndDate, 'day', '[]') && user.workingDays.includes(dayName)) {
+        if (leaveMap.has(leaveDate)) {
+          leaveMap.set(leaveDate, leaveMap.get(leaveDate) + leave.leaveCount);
+        } else {
+          leaveMap.set(leaveDate, leave.leaveCount);
+        }
+      }
+    });
+    const groupedData = {};
+    const date = moment(start);
+    while (date.isSameOrBefore(actualEndDate)) {
+      const dayName = date.format('dddd');
+      const dateStr = date.format('YYYY-MM-DD');
+      // const key = view === 'daily'
+      //   ? dateStr
+      //   : `${date.year()}-${String(date.month() + 1).padStart(2, '0')}`;
+      const key = dateStr;
+
+      if (!groupedData[key]) {
+        groupedData[key] = {
+          year: date.year(),
+          month: date.month() + 1,
+          day: date.date(),
+          // ...(view === 'daily' && { day: date.date() }),
+          status: 'Absent',
+          presentCount: 0,
+          absentCount: 0,
+          leaveCount: 0,
+        };
+      }
+
+      if (attendanceMap.has(dateStr)) {
+        const status = attendanceMap.get(dateStr);
+        if (status === 'Present'){ groupedData[key].presentCount += 1; groupedData[key].status = status;}
+        else groupedData[key].absentCount += 1;
+      } else if (leaveMap.has(dateStr)) {
+        groupedData[key].leaveCount += leaveMap.get(dateStr);
+      } else {
+        if(!user.workingDays.includes(dayName)) {groupedData[key].presentCount += 1;  groupedData[key].status = 'Present'; }
+        else groupedData[key].absentCount += 1;
+      }
+
+      date.add(1, 'day');
+    }
+
+    const result = Object.values(groupedData).sort((a, b) => {
+      return a.day - b.day;
+    });
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: 'Internal Server Error' });
+  }
+};
+const pad = n => `${n}`.padStart(2, '0');
 
 export { clockIn, clockOut, getDayAttendance, getAttendanceForMonth, markAbsenceOrManualClockOut, getEmployeesAttendance, getEmployeeLatestAttendance };

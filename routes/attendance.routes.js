@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { clockIn, clockOut, getDayAttendance, getAttendanceForMonth, getEmployeesAttendance, markAbsenceOrManualClockOut, getEmployeeLatestAttendance, attendanceSummary } from '../controllers/attendance.controller.js';
+import { clockIn, clockOut, getDayAttendance, getAttendanceForMonth, getEmployeesAttendance, markAbsenceOrManualClockOut, getEmployeeLatestAttendance, attendanceSummary, getAttendanceChartData } from '../controllers/attendance.controller.js';
 import { adminGuard, authGuard } from '../middleware/auth.js';
 
 const attendanceRoutes = Router();
@@ -18,5 +18,6 @@ attendanceRoutes.get('/month/:year/:month', authGuard, getAttendanceForMonth);
 // Mark absence or adjust clock-out time
 attendanceRoutes.put('/manual', authGuard, adminGuard, markAbsenceOrManualClockOut);
 attendanceRoutes.get("/today-summary", authGuard, attendanceSummary);
+attendanceRoutes.get("/summary", authGuard, getAttendanceChartData);
 
 export default attendanceRoutes;
