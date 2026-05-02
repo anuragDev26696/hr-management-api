@@ -22,7 +22,7 @@
         "moment-timezone": "^0.5.47",
         "mongoose": "^8.9.5",
         "node-cron": "^3.0.3",
-        "uuid": "^11.0.5"
+        "uuid": "^14.0.0"
     },
     "devDependencies": {
         "dotenv": "^16.4.7",
